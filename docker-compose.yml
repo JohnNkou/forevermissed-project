@@ -1,7 +1,7 @@
 services:
   frontend:
     build: ./frontend
-    image: missed/frontend:dev-1.0.0
+    image: missed/frontend:prod-1.0.0
     env_file: ./frontend/.env
     volumes:
       - ./frontend/plugins/:/home/frontend/plugins/
@@ -12,7 +12,7 @@ services:
       - 80:3000
   backend:
     build: ./backend
-    image: missed/backend:dev-1.0.0
+    image: missed/backend:prod-1.0.0
     ports:
       - 8000:8000
     env_file: 
@@ -25,7 +25,7 @@ services:
       forever-network:
   database:
     build: ./database
-    image: missed/database:dev-1.0.0
+    image: missed/database:prod-1.0.0
     env_file: 
       - ./database/.env
       - .env
@@ -46,7 +46,7 @@ services:
           - database
   subscription:
     build: ./subscription
-    image: missed/subscription:dev-1.0.0
+    image: missed/subscription:prod-1.0.0
     env_file:
       - .env
       - ./subscription/.env
