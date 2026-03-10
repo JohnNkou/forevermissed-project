@@ -1,0 +1,15 @@
+export const api 						= '/api';
+export const authEndpoint				= `${api}/auth`;
+export const loginEndpoint 				= `${authEndpoint}/login`
+export const registerEndpoint			= `${authEndpoint}/register`
+export const otpEndpoint				= `${authEndpoint}/otp`
+export const userEndpoint				= `${api}/users`
+export const userCardEndpoint			= `${userEndpoint}/:user_id/cards`
+export const memorialEndpoint 			= `${api}/memorials`;
+export const tributeEndpoint 			= `${memorialEndpoint}/:memorial_id/tributes`;
+export const abonnementEndpoint 		= `${api}/abonnements`;
+export const memorialPictureEndpoint 	= `${memorialEndpoint}/:memorial_id/pictures`;
+export const memorialVideoEndpoint 		= `${memorialEndpoint}/:memorial_id/videos`
+export const memorialAudioEndpoint		= `${memorialEndpoint}/:memorial_id/audios`
+export const resourceEndpoint			= `${api}/resources/:resource_name?memorial_id=:memorial_id`
+export const orderEndpoint				= `${api}/order`;

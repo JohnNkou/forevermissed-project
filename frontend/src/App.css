@@ -1,0 +1,38 @@
+/* Memorial website styles */
+* {
+    box-sizing: border-box;
+}
+
+/* Smooth transitions for interactive elements */
+button, a, input, textarea {
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+/* Hover effects */
+button:hover, a:hover {
+    opacity: 0.9;
+}
+
+/* Focus styles for accessibility */
+input:focus, textarea:focus, button:focus {
+    outline: none;
+    ring: 2px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}

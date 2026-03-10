@@ -1,0 +1,1 @@
+export const MAX_MINIATURE_SIZE=50000

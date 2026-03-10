@@ -1,0 +1,26 @@
+{
+  "name": "node-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "mongodb": "^6.21.0",
+    "node-pop3": "^0.11.0",
+    "utils": "file:../node-utils",
+    "why-is-node-running": "^3.2.2"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^9.9.0",
+    "dotenv": "^17.2.3"
+  }
+}

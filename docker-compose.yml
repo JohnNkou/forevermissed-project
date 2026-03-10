@@ -1,0 +1,84 @@
+services:
+  frontend:
+    build: ./frontend
+    image: missed/frontend:dev-1.0.0
+    env_file: ./frontend/.env
+    volumes:
+      - ./frontend/plugins/:/home/frontend/plugins/
+      - ./frontend/public/:/home/frontend/public/
+      - ./frontend/src/:/home/frontend/src/
+      - ./frontend/tailwind.config.js:/home/frontend/tailwind.config.js
+    ports:
+      - 80:3000
+  backend:
+    build: ./backend
+    image: missed/backend:dev-1.0.0
+    ports:
+      - 8000:8000
+    env_file: 
+      - ./backend/.env
+      - .env
+    volumes:
+       - ./backend:/home/backend
+       - data:/home/backend/resources/
+    networks:
+      forever-network:
+  database:
+    build: ./database
+    image: missed/database:dev-1.0.0
+    env_file: 
+      - ./database/.env
+      - .env
+      - ./subscription/.env
+      - ./backend/.env
+    ports:
+      - 27017:27017
+    command: --replSetName rs0 --keyFile=/home/ubuntu/keyfile
+    hostname: database
+    volumes:
+      - ./database/init.sh:/docker-entrypoint-initdb.d/init.sh
+      - ./database/init.js:/home/ubuntu/init.js
+      - ./database/dump/:/home/ubuntu/dump/
+      - ./database/card.js:/home/ubuntu/card.js
+    networks:
+      forever-network:
+        aliases:
+          - database
+  subscription:
+    build: ./subscription
+    image: missed/subscription:dev-1.0.0
+    env_file:
+      - .env
+      - ./subscription/.env
+    volumes:
+      - ./node-utils/:/home/node-utils/
+      - ./subscription:/home/subscription/
+    networks:
+      forever-network:
+  mail:
+    image: axllent/mailpit:v1.28
+    environment:
+      MP_SMTP_AUTH_FILE:  /home/password.txt
+      MP_POP3_AUTH_FILE:  /home/password.txt
+      MP_UI_AUTH_FILE:    /home/password.txt
+      MP_SMTP_TLS_CERT:   /certs/cert.pem
+      MP_POP3_TLS_CERT:   /certs/cert.pem
+      MP_UI_TLS_CERT:     /certs/cert.pem
+      MP_SMTP_TLS_KEY:    /certs/key.pem
+      MP_POP3_TLS_KEY:    /certs/key.pem
+      MP_UI_TLS_KEY:      /certs/key.pem
+    ports:
+      - 1025:1025
+      - 1110:1110  
+      - 8025:8025
+    networks:
+      forever-network:
+        aliases:
+          - missed.local
+    volumes:
+      - ./mail/password.txt:/home/password.txt
+      - ./certs:/certs/
+networks:
+  forever-network:
+volumes:
+  data:
