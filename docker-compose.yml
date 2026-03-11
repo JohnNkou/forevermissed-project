@@ -3,7 +3,7 @@ services:
     build: 
       context: ./frontend
       args:
-        - REACT_APP_BACKEND_URL=http://localhost:8000
+        - REACT_APP_BACKEND_URL=http://missed.mikeadlas.com:8000
     image: missed/frontend:prod-1.0.0
     env_file: 
       - ./frontend/.env
