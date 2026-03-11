@@ -1,17 +1,22 @@
 import { createContext, useContext, useState } from 'react'
 import { Loader } from 'lucide-react'
+import { Progress } from '../components/ui/progress'
 
 export const LoadingContext = createContext();
 
 export function LoadingProvider({children}){
-	let [message, setMessage] = useState('');
+	let [message, setMessage] = useState(),
+	[percent, setPercent] = useState();
 
-	return <LoadingContext.Provider value={{ showMessage: setMessage }}>
+	return <LoadingContext.Provider value={{ showMessage: setMessage, setPercent }}>
 		<div className={`fixed z-50 w-full h-full flex justify-center items-center ${message ? '':'hidden'}`}>
 			<div className='w-full h-full absolute bg-zinc-900 opacity-90 '></div>
-			<div className='flex flex-col gap-2 relative text-white'>
+			<div className='flex w-80 flex-col gap-2 relative text-white'>
 				<p className='text-center'><Loader size='100' className='animate-spin text-white inline-block' /></p>
-				<p className=''>{message}</p>
+				<p className='text-center'>{message}</p>
+				<div className={!percent ? 'hidden':''}>
+					<Progress value={percent} />
+				</div>
 			</div>
 		</div>
 		{children}

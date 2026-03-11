@@ -1,6 +1,6 @@
 import { MAX_MINIATURE_SIZE } from '../constant.js'
 
-function toBlob(canvas,type,quality){
+function toBlob(canvas,type,max_size,quality){
 	if(quality == undefined){
 		throw Error("No quality given");
 	}
@@ -13,8 +13,8 @@ function toBlob(canvas,type,quality){
 	return new Promise((resolve,reject)=>{
 		let action;
 		canvas.toBlob((blob)=>{
-			if(blob.size > MAX_MINIATURE_SIZE && quality > 0){
-				return toBlob(canvas, type, Number((quality - 0.1).toFixed(1))).then(resolve);
+			if(blob.size > max_size && quality > 0){
+				return toBlob(canvas, type, max_size, Number((quality - 0.1).toFixed(1))).then(resolve);
 			}
 
 			if(quality == 0){
@@ -27,7 +27,7 @@ function toBlob(canvas,type,quality){
 	})
 }
 
-export function resizeWidth(file, width, video=false){
+export function resizeWidth(file, width, max_size, video=false){
 	window.file = file;
 	return new Promise((resolve,reject)=>{
 		let source,
@@ -68,6 +68,11 @@ export function resizeWidth(file, width, video=false){
 			console.log("sourceHeight", sourceHeight);
 			console.log("width", width);
 			console.log("height", height);
+			console.log("File Type", file.type);
+
+			if(sourceWidth <= width){
+				return resolve(file);
+			}
 
 			canvas.width = width;
 			canvas.height = height;
@@ -75,7 +80,7 @@ export function resizeWidth(file, width, video=false){
 
 			context.drawImage(source, 0,0, width, height);
 
-			toBlob(canvas,'image/jpeg',1).then(resolve).catch(reject);
+			toBlob(canvas, file.type || 'image/jpeg',max_size,1).then(resolve).catch(reject);
 		}
 
 		source.onerror = (error)=>{

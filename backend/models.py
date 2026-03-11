@@ -212,16 +212,16 @@ class Memorial(BaseModel):
 
 @dataclass
 class MemorialCreate:
-    name: str = Form()
-    birth_date: str = Form()
+    name: str = Form(...)
+    birth_date: str = Form(...)
     death_date: Optional[str] = Form()
     birth_place: str = Form()
     death_place: Optional[str] = Form()
     biography: Optional[str] = Form()
     obituary: Optional[str] = Form()
-    image: UploadFile = File(),
-    background_image: Optional[UploadFile] = File()
-    background_sound: Optional[UploadFile] = File()
+    image: UploadFile = File(None),
+    background_image: UploadFile = File(None)
+    background_sound: UploadFile = File(None)
 
     def dict(self):
         res = {};
@@ -234,9 +234,9 @@ class MemorialCreate:
         res['death_date'] = self.death_date
         res['biography'] = self.biography
         res['obituary'] = self.obituary
-        res['image'] = self.image
-        res['background_image'] = self.background_image
-        res['background_sound'] = self.background_sound
+        res['image'] = self.image if self.image.size else None
+        res['background_image'] = self.background_image if self.background_image.size else None
+        res['background_sound'] = self.background_sound if self.background_sound.size else None
         res['gallery'] = []
         res['videos'] = []
         

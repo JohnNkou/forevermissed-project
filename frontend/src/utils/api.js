@@ -31,7 +31,7 @@ export const formFieldsApi = {
 export const memorialsApi = {
   list: (params) => axios.get(memorialEndpoint, { params }),
   get: (id) => axios.get(`${memorialEndpoint}/${id}`),
-  create: (data) => axios.post(memorialEndpoint, data, { headers: getAuthHeaders() }),
+  create: (data, onProgress) => axios.post(memorialEndpoint, data, { headers: getAuthHeaders(), onUploadProgress: onProgress }),
   getPictures: (id)=> axios.get(memorialPictureEndpoint.replace(':memorial_id', id)),
   addPicture: (id,form, {onProgress, signal})=> axios.post(memorialPictureEndpoint.replace(':memorial_id',id), form, { headers: getAuthHeaders(), onUploadProgress: onProgress }),
   deletePicture: (id,src)=> axios.delete(`${memorialPictureEndpoint.replace(':memorial_id', id)}?src=${btoa(src)}`, { headers: getAuthHeaders() }),
