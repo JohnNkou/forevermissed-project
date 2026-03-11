@@ -257,10 +257,10 @@ export default function MemorialManagement(){
 						</div>
 					</TabsContent>
 					<TabsContent value='video' className='px-5 py-3'>
-						<MemorialResource accept=".mp4, .mov" title='video' type='video' id={memorial._id} max={user_abonnement.maxVideo.number} resources={memorial.videos} actionElement={<ResourceActionElement remove={true} />} remove={true} onUploaded={reload_memorial} actionClickHandler={actionClickHandler} />
+						<MemorialResource accept=".mp4, .mov" title='video' type='video' id={memorial._id} max={ user_abonnement ? user_abonnement.maxVideo.number : 0} resources={memorial.videos} actionElement={<ResourceActionElement remove={true} />} remove={true} onUploaded={reload_memorial} actionClickHandler={actionClickHandler} />
 					</TabsContent>
 					<TabsContent value='photo' className='px-5 py-3'>
-						<MemorialResource accept=".jpg,.jpeg,.png" remove={true} title='photo' type='picture' id={memorial._id} max={user_abonnement.maxPicture.number} resources={memorial.gallery} actionElement={<ResourceActionElement remove={true} />} onUploaded={reload_memorial} actionClickHandler={actionClickHandler} />
+						<MemorialResource accept=".jpg,.jpeg,.png" remove={true} title='photo' type='picture' id={memorial._id} max={user_abonnement ? user_abonnement.maxPicture.number : 0} resources={memorial.gallery} actionElement={<ResourceActionElement remove={true} />} onUploaded={reload_memorial} actionClickHandler={actionClickHandler} />
 					</TabsContent>
 				</Tabs>
 			</div>

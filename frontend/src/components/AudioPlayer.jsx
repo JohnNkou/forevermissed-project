@@ -59,6 +59,12 @@ export function AudioControl({ src, autoplay, loop=true, className='' }){
 	let [isPlaying, setIsPlaying] = useState(false),
 	[volume, setVolume] = useState(0.3);
 
+	console.log('SRC',src);
+
+	if(!src){
+		return null;
+	}
+
 	function toggleAudio(){
 		setIsPlaying(!isPlaying);
 	}

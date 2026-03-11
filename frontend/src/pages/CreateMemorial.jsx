@@ -7,6 +7,7 @@ import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { toast } from '../hooks/use-toast';
 import { memorialsApi } from '../utils/api';
+import { resizeWidth } from '../utils/img'
 import { useLoading } from '../contexts/LoadingContext'
 
 const CreateMemorial = () => {
@@ -28,6 +29,14 @@ const CreateMemorial = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  function onProgress(event){
+    let total = event.total,
+    loaded = event.loaded,
+    percent = Math.floor((loaded / total) * 100);
+
+    loader.setPercent(percent);
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -44,8 +53,29 @@ const CreateMemorial = () => {
     try {
       loader.showMessage("Création de l'espace")
 
-      const f = new FormData(event.target),
-      response = await memorialsApi.create(f);
+      const f = new FormData(event.target);
+
+      let response,image,background_image,files;
+
+      image = f.get('image');
+      background_image = f.get('background_image');
+
+      console.log("Image size", image.size);
+      console.log("Background image size", background_image.size);
+
+      try{
+        files = await Promise.all([resizeWidth(image,300, image.size), resizeWidth(background_image,1000, background_image.size)]);
+
+        f.set('image', files[0]);
+        f.set('background_image', files[1]);
+
+        console.log("Reduce file size", files[0].size, files[1].size);
+      }
+      catch(error){
+        console.error("Error resizing files",error);
+      }
+
+      response = await memorialsApi.create(f, onProgress);
 
       toast({
         title: 'Esapce crée',
@@ -66,6 +96,7 @@ const CreateMemorial = () => {
     }
 
     loader.showMessage('');
+    loader.setPercent(null);
   };
 
   return (

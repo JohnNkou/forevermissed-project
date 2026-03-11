@@ -218,7 +218,7 @@ const MemorialDetailNew = () => {
         </div>
 
         {/* Audio Player - Top Right */}
-        {memorial.background_sound && <AudioControl autoplay='true' src={memorial.background_sound + `?memorial_id=${memorial._id}`} loop className='hidden' />}
+        {memorial.background_sound && <AudioControl autoplay='true' src={memorial.background_sound ? memorial.background_sound + `?memorial_id=${memorial._id}` : ''} loop className='hidden' />}
 
         {/* Share Button - Top Left */}
         <button

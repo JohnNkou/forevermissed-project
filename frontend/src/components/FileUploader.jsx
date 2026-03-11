@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogTitle } from './ui/dialog'
 import { useAuth } from '../contexts/AuthContext'
 import { resizeWidth } from '../utils/img'
 import { memorialsApi } from '../utils/api'
+import { MAX_MINIATURE_SIZE } from '../constant.js'
  
 export function FileUploader({ onUploaded, onClose, type, accept, field_name, memorial_id }){
 	let [files, setFiles] = useState([]),
@@ -227,7 +228,7 @@ function Uploader({file, onError, field_name, memorial_id,  onSuccess, type}){
 		data.append('title', file.title);
 
 		if(!iconFile){
-			p = resizeWidth(file,400, type == 'video').
+			p = resizeWidth(file,400, MAX_MINIATURE_SIZE, type == 'video').
 			then((blob)=>{
 				data.append('picture_mini', blob);
 			});

@@ -115,7 +115,7 @@ export function AddCardDialog({ hideDialog, onAdded }){
 		}).finally(()=>{ setMessage(message)})
 	}
 
-	return <Dialog onClose={hideDialog} defaultOpen="true">
+	return <Dialog onClose={hideDialog} defaultOpen="true" onOpenChange={hideDialog}>
 		<DialogContent>
 			<p className='mb-2'>{message}</p>
 			<form onSubmit={handleSubmit} className='grid grid-cols-3'>
