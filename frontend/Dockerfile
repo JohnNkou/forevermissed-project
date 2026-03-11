@@ -12,7 +12,6 @@ COPY package.json package.json
 COPY postcss.config.js postcss.config.js
 COPY tailwind.config.js tailwind.config.js
 
-RUN yarn install
-#RUN yarn run build
+RUN yarn install && yarn run build
 
 ENTRYPOINT npm run start
