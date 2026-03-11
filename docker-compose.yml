@@ -74,7 +74,7 @@ services:
     networks:
       forever-network:
         aliases:
-          - missed.local
+          - missed.jasmio.com
     volumes:
       - ./mail/password.txt:/home/password.txt
       - ./certs:/certs/
