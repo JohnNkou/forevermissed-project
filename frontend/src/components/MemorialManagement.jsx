@@ -35,6 +35,9 @@ export default function MemorialManagement(){
 		try{
 			let response = await memorialsApi.get(id);
 
+			response.data.birth_date = new Date(response.data.birth_date);
+			response.data.death_date = new Date(response.data.death_date);
+
 			setMemorial(response.data);
 		}
 		catch(error){
