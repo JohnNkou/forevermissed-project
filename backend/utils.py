@@ -6,10 +6,10 @@ import os
 import secrets
 import constants
 
-DOMAIN = os.environ['APP_DOMAIN']
+APP_URL = os.environ['APP_URL']
 
-if DOMAIN == 'missed.local':
-    DOMAIN = os.environ['DOMAIN']
+if not APP_URL:
+	raise "APP_URL environment variable should be defined"
 
 def get_expiration_date(date,range):
 	throwed = False
@@ -47,7 +47,7 @@ def handleUploadedFiles(files):
 		with tempfile.NamedTemporaryFile(delete=False, dir="/home/backend/resources/", suffix=suffix) as tmp:
 			shutil.copyfileobj(file.file,tmp.file)
 
-		filename = "http://localhost:8000/api/resources/%s" % (PurePath(tmp.name).name)
+		filename = "%s/api/resources/%s" % (APP_URL, PurePath(tmp.name).name)
 		res.append(filename)
 
 	return res
