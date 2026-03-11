@@ -1,8 +1,13 @@
 services:
   frontend:
-    build: ./frontend
-    image: missed/frontend:dev-1.0.0
-    env_file: ./frontend/.env
+    build: 
+      context: ./frontend
+      args:
+        - REACT_APP_BACKEND_URL=http://localhost:8000
+    image: missed/frontend:prod-1.0.0
+    env_file: 
+      - ./frontend/.env
+      - .env
     volumes:
       - ./frontend/plugins/:/home/frontend/plugins/
       - ./frontend/public/:/home/frontend/public/
@@ -12,7 +17,7 @@ services:
       - 80:3000
   backend:
     build: ./backend
-    image: missed/backend:dev-1.0.0
+    image: missed/backend:prod-1.0.0
     ports:
       - 8000:8000
     env_file: 
@@ -25,7 +30,7 @@ services:
       forever-network:
   database:
     build: ./database
-    image: missed/database:dev-1.0.0
+    image: missed/database:prod-1.0.0
     env_file: 
       - ./database/.env
       - .env
@@ -46,10 +51,12 @@ services:
           - database
   subscription:
     build: ./subscription
-    image: missed/subscription:dev-1.0.0
+    image: missed/subscription:prod-1.0.0
     env_file:
       - .env
       - ./subscription/.env
+    environment:
+      - NODE_ENV:development
     volumes:
       - ./node-utils/:/home/node-utils/
       - ./subscription:/home/subscription/
