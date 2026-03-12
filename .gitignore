@@ -8,6 +8,8 @@ package-lock.json
 node-backend/tests/audios/
 .env
 yarn.lock
+.emergent
+*.md
 
 # IDE and editors
 .idea/
