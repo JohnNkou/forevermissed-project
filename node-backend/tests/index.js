@@ -1,11 +1,11 @@
 import assert from 				'node:assert'
 import path from 				'node:path';
 import { MongoClient, ObjectId } from 	'mongodb'
-import { memorialEndpoint, tributeEndpoint, abonnementEndpoint, userCardEndpoint, memorialPictureEndpoint, memorialVideoEndpoint, memorialAudioEndpoint, resourceEndpoint, orderEndpoint, userEndpoint } from '../src/endpoint.js'
+import { memorialEndpoint, tributeEndpoint, abonnementEndpoint, userCardEndpoint, memorialPictureEndpoint, memorialVideoEndpoint, memorialAudioEndpoint, resourceEndpoint, orderEndpoint, userEndpoint, orderPaymentEndpoint } from '../src/endpoint.js'
 import FORM_FIELDS from 		'../src/fields.js'
 import Memorial from 			'../src/types/Memorial.js'
 import Abonnement from 			'../src/types/Abonnement.js'
-import { generateMemorial, generateUser, generatePictureData, generateVideoData, generateTribute, generateAbonnement, addResourceDataToForm, addDataToForm, updateAbonnementForTest,restoreAbonnements, setCardStub, getExpirationDate, waitFor, checkMissingPaiementRecords, waitAction, idSorter, getPopUsers, is, orderBuilder, titleSorter, getEnvData, getUserResource } from './utils.js'
+import { generateOrder, generateMemorial, generateUser, generatePictureData, generateVideoData, generateTribute, generateAbonnement, addResourceDataToForm, addDataToForm, updateAbonnementForTest,restoreAbonnements, setCardStub, getExpirationDate, waitFor, checkMissingPaiementRecords, waitAction, idSorter, getPopUsers, is, orderBuilder, titleSorter, getEnvData, getUserResource, dateToString, ObjectIdToString, removeId, Decimal128ToNumber } from './utils.js'
 import { getNumber, calculateExpirationDate,  getAbonnementDates, getMonthBetweenDate, } from 'utils/utils.js'
 import bcrypt from 				'bcrypt';
 import Card from '../src/types/Card.js'
@@ -33,6 +33,8 @@ db_paiements 		=	db.collection('paiements'),
 db_cards 			=	db.collection('cards'),
 db_orders 			=	db.collection('orders'),
 db_missed_payments 	= 	db.collection('missed_payments'),
+db_sessions			=	db.collection('sessions'),
+db_otps				=	db.collection('otps'),
 managers = Array.from('1'.repeat(2)).map((_,index)=> new User(generateUser(POP_USERS[index]))),
 admins = [1,2].map((_,index)=> new User(generateUser({ ...POP_USERS[index+2], role:'admin' }))),
 default_abonnements =	await db_abonnements.find().toArray(),
@@ -128,6 +130,27 @@ try{
 					}
 				}
 			})
+		})
+
+		await t.test("When the user sent an expired cookie the server should return a 404 status code", async ()=>{
+			let sId = "monako",
+			email = 'viva@gmail.com',
+			code = 'monaco';
+
+			responses = await Promise.all([
+				await db_sessions.insertOne({ sId, email }),
+				await db_otps.insertOne({ email, code, date_created: new Date("2022-12-04 13:00:00") })
+			]);
+
+			for(let response of responses){
+				assert.ok(response.insertedId);
+			}
+
+			guest.set_cookie('sessionId', sId);
+
+			response = await guest.send_otp(code);
+
+			assert.equal(response.status,404,`The server should return a 404 status code because of an expired otp`);
 		})
 	})
 
@@ -1307,6 +1330,85 @@ try{
 
 			assert.equal(response.status,404,`The server should return a 404 status code`);
 		})
+
+		await t.test("When the user send a get request to the order endpoint it data in the order collection should be returned", async()=>{
+			let orders = [ generateOrder(manager1.get_email(), 't-1'), generateOrder(manager1.get_email(), 't-1'), generateOrder(manager1.get_email(), 't-2'), generateOrder(manager1.get_email(), 'unpaid-suspended'), generateOrder(manager1.get_email(), 'processing'), generateOrder(manager2.get_email()) ],
+			order,myOrders;
+
+			orders.sort((x,y)=> x.date_created > y.date_created ? -1: 1);
+			myOrders = orders.filter((order)=> order.status != 'processing' && order.email == manager1.get_email())
+
+			await db_orders.deleteMany({});
+
+			await db_orders.insertMany(orders);
+
+			dateToString(orders); ObjectIdToString(orders); Decimal128ToNumber(orders);
+
+			response = await manager1.request(orderEndpoint);
+			jsonResponse = await response.json();
+
+			assert.equal(response.status,200, `The server should return a 200 status code`);
+			assert.equal(jsonResponse.orders.length, myOrders.length, `The orders array should have ${orders.length} order`);
+
+			ObjectIdToString(jsonResponse.orders);
+
+			for(let i=0; i < orders.length; i++){
+				let order = jsonResponse.orders[i],
+				_order = myOrders[i];
+
+				assert.deepEqual(order, _order, `The order returned should be the same as those inserted in the database`);
+			}
+
+			response = await manager1.request(`${orderEndpoint}?status=t-1`);
+			jsonResponse = await response.json();
+			order = myOrders.filter((order)=> order.status == 't-1');
+			ObjectIdToString(jsonResponse.orders);
+
+			assert.equal(jsonResponse.orders.length, 2, `The orders array should only have 2 elements`);
+			assert.deepEqual(jsonResponse.orders, order, `The orders array should be then same as the orders with the paid status`);
+
+			response = await manager1.request(`${orderEndpoint}?status=t-2`);
+			jsonResponse = await response.json();
+			order = myOrders.find((order)=> order.status == 't-2');
+			ObjectIdToString(jsonResponse.orders);
+
+			assert.equal(jsonResponse.orders.length,1, `The orders array should onlye have 1 element`);
+			assert.deepEqual(order, jsonResponse.orders[0], `The order returned should be the same as the unpaid order`);
+
+			response = await manager1.request(`${orderEndpoint}?status=unpaid-suspended`);
+			jsonResponse = await response.json();
+			order = myOrders.find((order)=> order.status == 'unpaid-suspended');
+			ObjectIdToString(jsonResponse.orders);
+
+			assert.equal(jsonResponse.orders.length,1, `The orders array should only have 1 element`);
+			assert.deepEqual(jsonResponse.orders[0], order, `The orders array should be the same as the unpaid-suspended status order`);
+		})
+
+		await t.test("The order should be updated to paid when the user successfull pay an unpaid-suspended order", async()=>{
+			let order = await db_orders.find({ email: manager1.get_email(), status:'unpaid-suspended' }).next(),
+			card = manager1.get_payment_card(),
+			url = orderPaymentEndpoint.replace(':order_id', order._id.toString());
+
+			assert.ok(order);
+
+			Decimal128ToNumber(order);
+
+			card.update_amount(0);
+			await card.update_card_in_db(db_cards);
+
+			response = await manager1.request(url, { method:'PUT' });
+
+			assert.equal(response.status, 400, `The server should return a 404 status code when the payment coudln't be done`);
+
+			card.update_amount(order.price);
+			await card.update_card_in_db(db_cards);
+
+			response = await manager1.request(url, { method:'PUT' });
+			order = await db_orders.find({ _id: order._id }).next();
+
+			assert.equal(response.status, 201, `The server should return a 201 status code because the user card as enought money`);
+			assert.equal(order.status, 'paid');
+		})
 	})
 
 	await test("Testing admin operation", { skip:false, signal: aborter.signal }, async(t)=>{
@@ -1513,13 +1615,15 @@ try{
 
 		await t.test("Testing Transaction viewing", async (t)=>{
 			await t.test("The admin should be able to view all the transaction that occured in the order collection",async()=>{
-				let orders = await db_orders.find().sort('_id',-1)
+				let orders = await db_orders.find().sort('date_created',-1)
 				.project({
 					_id: { $toString:"$_id" },
 					abonnementId: { $toString:"$abonnementId" },
-					date_created:1, status:1, price:1, currency:1, abonnementType:1
+					date_created:1, due_date:1, status:1, price:1, currency:1, abonnementType:1, email:1
 				})
 				.toArray();
+
+				Decimal128ToNumber(orders); dateToString(orders);
 
 				response = await admin1.request(orderEndpoint);
 				jsonResponse = await response.json();
@@ -1531,12 +1635,6 @@ try{
 				for(let i=0; i < orders.length; i++){
 					let order = orders[i],
 					r_order = jsonResponse.orders[i];
-
-					order.price = Number(order.price);
-
-					if(order.date_created){
-						order.date_created = order.date_created.toISOString();
-					}
 
 					assert.deepEqual(r_order, order, `The server should return the same information that are in the order database`);
 				}
@@ -1557,7 +1655,8 @@ try{
 				assert.equal(response.status,200, `The server should return a 200 status code`);
 				assert.equal(jsonResponse.orders.length,0, `The server should return a empty order`);
 
-				length = await db_orders.updateMany({ }, { $set: { status:'t-1' } }).then((response)=> response.modifiedCount);
+				await db_orders.updateMany({ }, { $set: { status:'t-1' } });
+				length = await db_orders.countDocuments({ status: 't-1' });
 
 				response = await admin1.request(`${orderEndpoint}?status=t-1`);
 				jsonResponse = await response.json();

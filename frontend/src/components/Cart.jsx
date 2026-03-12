@@ -9,7 +9,7 @@ import { Button } from './ui/button'
 import { toast } from '../hooks/use-toast'
 import Resumer from './Resumer'
 import { CardChooser } from './Cards'
-import { abonnementsApi } from '../utils/api'
+import { ordersApi } from '../utils/api'
 import { useLoading } from '../contexts/LoadingContext'
 
 export default function Cart(){
@@ -71,7 +71,7 @@ export default function Cart(){
 					_id: selectedCard._id
 				}
 			},
-			response = await abonnementsApi.order(data);
+			response = await ordersApi.add(data);
 
 			toast({
 				title:'Abonnement effectué',

@@ -64,6 +64,10 @@ export const usersApi = {
 export const abonnementsApi = {
   list: ()=> axios.get(abonnementEndpoint, { headers: getAuthHeaders() }),
   get: (id)=> axios.get(`${abonnementEndpoint}/${id}`),
-  order: (data)=> axios.post(orderEndpoint, data, { headers: getAuthHeaders() }),
   add: (payload)=> axios.post(abonnementEndpoint,payload, { headers: getAuthHeaders() })
+}
+
+export const ordersApi = {
+  list: ()=> axios.get(orderEndpoint, { headers: getAuthHeaders() }),
+  add: (data)=> axios.post(orderEndpoint, data, { headers: getAuthHeaders() }),
 }

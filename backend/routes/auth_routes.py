@@ -11,6 +11,8 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 # This will be injected from server.py
 db = None
+OTP_EXPIRATION = int(os.environ['OTP_EXPIRATION'])
+
 
 def set_db(database: AsyncIOMotorDatabase):
     global db
@@ -42,7 +44,7 @@ async def register(user_data: UserCreate, response : Response):
         otp = generate_otp()
 
         otp_data["code"] = otp
-        otp_data["created_at"] = datetime.utcnow()
+        otp_data["date_created"] = datetime.utcnow()
         otp_data["password"] = get_password_hash(user_data.password)
 
         client = db.client
@@ -74,7 +76,22 @@ async def otp_verify(otp: Otp, sessionId: str = Cookie()):
     user_data = await db.sessions.find_one({ "sId": sessionId })
 
     if user_data:
-        otp_data = await db.otps.find_one({ "code": otp.code, "email": user_data["email"] })
+        otp_data = await db.otps.find_one({ 
+            "code": otp.code, 
+            "email": user_data["email"],
+            "$expr":{
+                "$gte":[
+                    OTP_EXPIRATION,
+                    {
+                        "$dateDiff":{
+                            "startDate": "$date_created",
+                            "endDate": datetime.utcnow(),
+                            "unit": "second"
+                        }
+                    }
+                ]
+            }
+        })
 
         if otp_data:
             response = await db.users.insert_one({

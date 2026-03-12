@@ -9,6 +9,8 @@ import { Label } from './ui/label'
 import { Select, SelectTrigger, SelectValue, SelectPortal, SelectContent, SelectItem } from './ui/select'
 import { Dialog, DialogTrigger, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogClose } from './ui/dialog'
 import { AddCardDialog } from './Cards'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs'
+import { ordersApi } from '../utils/api.js'
 
 export default function Payments(){
 	let [loading, setLoading] = useState(false),
@@ -28,24 +30,85 @@ export default function Payments(){
 		}).finally(()=> setLoading(false));
 	},[true])
 
-	return <div className='mx-10'>
-		{loading && <div><p>Chargement des cartes</p></div>}
-		<div className='text-center flex justify-center gap-4'>
-			<h1 className='text-3xl font-bold text-center'>
-				Cartes
-			</h1>
-			<Button  onClick={()=> setShowAddDialog(true) }>Ajouter</Button>
-		</div>
-		<div className='text-center'>
-			
-			<div className='grid grid-cols-5'>
-				{ cards && cards.length != 0 && cards.map((card)=>{
-					return <Card card={card} key={card._id} />
-				})}
-				{ cards && cards.length == 0 && <p className='text-center col-span-5 mt-5'>Aucun moyen de paiement trouvé</p> }
+	return <Tabs defaultValue='transaction'>
+		<TabsList className='w-full bg-transparent'>
+			<TabsTrigger value='transaction'>Transaction</TabsTrigger>
+			<TabsTrigger value='carte'>Cartes</TabsTrigger>
+		</TabsList>
+		<TabsContent value='transaction'>
+			<Transaction />
+		</TabsContent>
+		<TabsContent value='carte'>
+			<div className='mx-10'>
+				{loading && <div><p>Chargement des cartes</p></div>}
+				<div className='text-center flex justify-center gap-4'>
+					<h1 className='text-3xl font-bold text-center'>
+						Cartes
+					</h1>
+					<Button  onClick={()=> setShowAddDialog(true) }>Ajouter</Button>
+				</div>
+				<div className='text-center'>
+					
+					<div className='grid grid-cols-5'>
+						{ cards && cards.length != 0 && cards.map((card)=>{
+							return <Card card={card} key={card._id} />
+						})}
+						{ cards && cards.length == 0 && <p className='text-center col-span-5 mt-5'>Aucun moyen de paiement trouvé</p> }
+					</div>
+				</div>
+				{showAllDialog && <AddCardDialog hideDialog={()=> setShowAddDialog(false)} />}
 			</div>
-		</div>
-		{showAllDialog && <AddCardDialog hideDialog={()=> setShowAddDialog(false)} />}
+		</TabsContent>
+	</Tabs>
+}
+
+function Transaction(){
+	let [message, setMessage] = useState('Chargement'),
+	[orders, setOrders] = useState();
+
+	useEffect(()=>{
+		ordersApi.list().then((response)=>{
+			console.log('RESPONSE',response);
+			let data = response.data.orders;
+
+			setOrders(data);
+		}).catch((error)=>{
+			console.error(error);
+			setMessage('Une erreur est survenue lors du chargement des transactions');
+		}).finally(()=>{
+			setMessage('');
+		})
+	},[]);
+
+	return <div className='p-6'>
+		<p></p>
+		<table className='table-fixed w-full text-center'>
+			{ orders && orders.length &&
+				<>
+					<thead>
+						<tr className='bg-primary text-white'>
+							<th>Periode</th>
+							<th>Prix</th>
+							<th>Status</th>
+							<th>Date</th>
+						</tr>
+					</thead>
+					<tbody>
+						{ orders.map((order)=>{
+							let due_date = new Date(order.due_date).toLocaleDateString('fr-FR', { weekday:'short', month:'long', day:'numeric', year:'numeric' }),
+							date_created = new Date(order.date_created).toLocaleDateString('fr-FR', { weekday: 'short', month:'long', day:'numeric', year:'numeric' });
+
+							return <tr className='border-b text-gray-900 bg-white text-base' key={order._id}>
+								<td>{due_date}</td>
+								<td className='font-semibold'>{order.price} {order.currency}</td>
+								<td>{order.status}</td>
+								<td>{date_created}</td>
+							</tr>
+						}) }
+					</tbody>
+				</>
+			}
+		</table>
 	</div>
 }
 

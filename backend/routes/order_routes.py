@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status, Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from auth import get_order_data, get_current_manager, get_current_admin
+from auth import get_order_data, get_current_manager, get_current_admin, get_current_user
+from models import PaymentCard
 from bson import ObjectId, Decimal128
 from datetime import datetime
 import os
@@ -17,23 +18,32 @@ def set_db(database: AsyncIOMotorDatabase):
     db = database
 
 @router.get("/", status_code=200)
-async def get(user: dict = Depends(get_current_admin), status : str = None):
+async def get(user: dict = Depends(get_current_user), status : str = None):
     query = {}
+    isManager = user['role'] == 'manager'
+
+    if isManager:
+        query['email'] = user['email']
+
+        if not status:
+            query['status'] = { "$nin": [ 'processing' ] }
 
     if status:
         query['status'] = status
+
 
     response = await db.orders.find(query,
         projection={
             "_id": { "$toString": "$_id" },
             "abonnementId": { "$toString": "$abonnementId" },
-            "price":1, "currency":1, "status":1,"date_created":1,"abonnementType":1
+            "price":1, "currency":1, "email":1, "status":1,"date_created":1, "due_date":1, "abonnementType":1
         }
-    ).sort('_id', -1).to_list(1000)
+    ).sort('date_created', -1).to_list(1000)
 
     for order in response:
         if order.get('date_created'):
             order['date_created'] = order['date_created'].isoformat()[:-3] + 'Z'
+            order['due_date'] = order['due_date'].isoformat()[:-3] + 'Z'
 
         order['price'] = order['price'].to_decimal()
 
@@ -145,3 +155,54 @@ async def update_user_order(
             status_code=500,
             detail="Abonnement info couldn't be inserted"
         )
+
+@router.put('/pay/{order_id}', status_code=201)
+async def pay_order(order_id: str, user : dict = Depends(get_current_manager)):
+    order = await db.orders.find_one({ "_id": ObjectId(order_id) })
+
+    if order:
+        user = await db.users.find_one({ "email": user['email'] }, ['cards'])
+        cards = user.get('cards')
+
+        if cards:
+            card = [ x for x in cards if x.get('default') == True ].pop()
+
+            if card:
+                card = await db.cards.find_one({ "_id": card['id'] });
+
+                print("Card is", card)
+
+                if card:
+                    payment_card = PaymentCard(card, db.cards)
+                    price = order['price'].to_decimal()
+                    currency = order['currency']
+
+                    client = db.client
+
+                    async with await client.start_session(causal_consistency=True) as session:
+
+                        result = await session.with_transaction(lambda x: pay_order(
+                            order_id, price, currency, payment_card, session
+                            ))
+
+                    if result:
+                        return { "inserted": True }
+                    else:
+                        raise HTTPException(400,"Order couldn't be paid")
+                else:
+                    raise HTTPException(404,"Card not found in cards")
+
+
+        print("User has no default card")
+        raise HTTPException(404, "User has no default card")
+    else:
+        print("No order found")
+        raise HTTPException(404, 'No order found')
+
+async def pay_order(order_id, price, currency, payment_card, session):
+    if await payment_card.pay(price, currency, session):
+        response = await db.orders.update_one({ "_id": ObjectId(order_id) }, { "$set": { "status": "paid" } }, session=session)
+
+        return response.modified_count > 0
+    else:
+        return False

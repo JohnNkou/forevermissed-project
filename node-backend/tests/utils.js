@@ -335,6 +335,62 @@ export function addDataToForm({form,lists,name}){
 	lists.forEach((list)=> form.append(name, list));
 }
 
+export function removeId(data){
+	if(!(data instanceof Array)){
+		data = [data];
+	}
+
+	data.forEach((d)=> delete d._id);
+}
+
+export function dateToString(data){
+	if(!(data instanceof Array)){
+		data = [data];
+	}
+
+	data.forEach((d)=>{
+		for(let name in d){
+			let value = d[name];
+
+			if(value instanceof Date){
+				d[name] = value.toISOString();
+			}
+		}
+	})
+}
+
+export function Decimal128ToNumber(data){
+	if(!(data instanceof Array)){
+		data = [data];
+	}
+
+	data.forEach((d)=>{
+		for(let name in d){
+			let value = d[name];
+
+			if(value instanceof Decimal128){
+				d[name] = Number(value);
+			}
+		}
+	})
+}
+
+export function ObjectIdToString(data){
+	if(!(data instanceof Array)){
+		data = [data];
+	}
+
+	data.forEach((d)=>{
+		for(let name in d){
+			let value = d[name];
+
+			if(value instanceof ObjectId){
+				d[name] = value.toString();
+			}
+		}
+	})
+}
+
 export function generateVideoData(number, {category=1, video_size=1000, picture_size=1000} = {}){
 	const videos = [],
 	pictures_mini = [],
@@ -380,17 +436,18 @@ export function generateMemorial(role='admin'){
 	return form;
 }
 
-export function generateOrder(){
+export function generateOrder(email,status='new'){
 	return {
 		abonnementId: new ObjectId(),
 		abonnementType: faker.string.uuid(),
-		email: faker.internet.email(),
+		email: email,
 		price: new Decimal128(
 			faker.number.int({ min:20, max:100 }).toString()
 		),
 		currency: 'USD',
-		date_created: new Date(),
-		status: 'new'
+		date_created: faker.date.recent({ days:90 }),
+		due_date: new Date(),
+		status
 	}
 }
 

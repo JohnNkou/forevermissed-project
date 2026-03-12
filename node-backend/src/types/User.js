@@ -20,6 +20,10 @@ export default class User{
 		this.#id = id;
 	}
 
+	set_cookie(key,value){
+		this.#cookies.set(key,value);
+	}
+
 	get_email(){
 		return this.#data.email;
 	}

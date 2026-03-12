@@ -481,8 +481,6 @@ class Order:
 
         abonnement['frequency'] = frequency
         abonnement['price'] = abonnement['price'].to_decimal()
-        payment_card['amount'] = payment_card['amount'].to_decimal()
-
         payment_card = PaymentCard(payment_card,db.cards)
 
         return Order(AbonnementOrder(abonnement), payment_card)
@@ -491,6 +489,8 @@ class Order:
 class PaymentCard:
     """docstring for PaymentCard"""
     def __init__(self, card,collection):
+        card['amount'] = card['amount'].to_decimal()
+
         self.card = card
         self.collection = collection
 
@@ -514,7 +514,7 @@ class PaymentCard:
         card['amount'] = Decimal128(card['amount'])
         return card
 
-    async def pay(self, price, currency):
+    async def pay(self, price, currency, session=None):
         card_currency = self.get_currency()
         card_amount = self.get_amount()
         if card_currency != currency.lower():
@@ -530,7 +530,8 @@ class PaymentCard:
 
         response = await collection.update_one(
             { "_id": self.card['_id'] },
-            { "$inc": { "amount": Decimal128(price) } }
+            { "$inc": { "amount": Decimal128(price) } },
+            session=session
         )
 
         if not response.modified_count:

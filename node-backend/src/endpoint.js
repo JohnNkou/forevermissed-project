@@ -13,3 +13,4 @@ export const memorialVideoEndpoint 		= `${memorialEndpoint}/:memorial_id/videos`
 export const memorialAudioEndpoint		= `${memorialEndpoint}/:memorial_id/audios`
 export const resourceEndpoint			= `${api}/resources/:resource_name?memorial_id=:memorial_id`
 export const orderEndpoint				= `${api}/order`;
+export const orderPaymentEndpoint		= `${orderEndpoint}/pay/:order_id`

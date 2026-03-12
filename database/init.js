@@ -13,7 +13,7 @@ const logger = {
 }
 
 try{
-	let { MONGO_INITDB_ROOT_USERNAME, MONGO_INITDB_ROOT_PASSWORD , DB_NAME, DB_HOST, SUB_USER, SUB_PASSWORD, BACK_USER, BACK_PASSWORD } = process.env,
+	let { MONGO_INITDB_ROOT_USERNAME, MONGO_INITDB_ROOT_PASSWORD , DB_NAME, DB_HOST, SUB_USER, SUB_PASSWORD, BACK_USER, BACK_PASSWORD, OTP_EXPIRATION } = process.env,
 	admin = db.getSiblingDB('admin'),
 	config = {
 		_id:"rs0",
@@ -100,7 +100,7 @@ try{
 			},
 			{
 				resource: { db: DB_NAME, collection:"orders" },
-				actions:["insert","find"]
+				actions:["insert", "update" ,"find"]
 			},
 			{
 				resource: { db: DB_NAME, collection:"abonnements" }, 
@@ -373,6 +373,16 @@ try{
 	logger.log("Creating index for collection abonnements");
 
 	db.abonnements.createIndex({ type:1 }, { unique:true })
+
+	logger.log("Index created");
+
+	logger.log("Creating Index for the Otps collection");
+
+	if(!OTP_EXPIRATION){
+		throw Error("OTP_EXPIRATION NOT FOUND IN ENVIRONEMENT");
+	}
+
+	db.otps.createIndex({ date_created:1 }, { expireAfterSeconds: Number(OTP_EXPIRATION) })
 
 	logger.log("Index created");
 }
