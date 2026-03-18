@@ -1,5 +1,6 @@
 from datetime import datetime
 from pathlib import PurePath
+from bson import ObjectId
 import tempfile
 import shutil
 import os
@@ -10,6 +11,29 @@ APP_URL = os.environ['APP_URL']
 
 if not APP_URL:
 	raise "APP_URL environment variable should be defined"
+
+def date_to_string(data):
+	if not isinstance(data,list):
+		data = [data]
+
+	for item in data:
+		for [key,value] in item.items():
+			if isinstance(value, datetime):
+				item[key] = str(value).replace(' ','T')[0:-3] + 'Z'
+
+def objectId_to_string(data):
+	if not isinstance(data,list):
+		data = [data]
+
+	for item in data:
+		for [key,value] in item.items():
+			if isinstance(value, ObjectId):
+				item[key] = str(value)
+
+def get_limit():
+	limit = os.environ['LIMIT'].split(",")
+
+	return [ int(number) for number in limit ]
 
 def get_expiration_date(date,range):
 	throwed = False

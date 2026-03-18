@@ -17,7 +17,7 @@ getEnvData();
 
 const User = await import('../src/types/User.js').then((d)=> d.default),
 Pop = await import('../src/types/Pop.js').then((d)=> d.default),
-client = await import('./conn.js').then((d)=> d.default);
+client = await import('../src/conn.js').then((d)=> d.default);
 
 
 const { DB_HOST, MONGO_INITDB_ROOT_USERNAME, MONGO_INITDB_ROOT_PASSWORD, DB_NAME, SESSION_NAME, CHECKING_MISSING_PAIEMENT_INTERVAL, POP_USER, POP_PASSWORD} = process.env,
@@ -950,7 +950,7 @@ try{
 
 	})
 
-	await test("Testing Abonement renewal procedures", async(t)=>{
+	await test("Testing Abonement renewal procedures", { skip:false, signal: aborter.signal }, async(t)=>{
 		let abonnement = _abonnements[0],
 		user_abonnement = await db_users.find({ _id: manager1.get_id() }).project({ _id:0, abonnement:true }).next().then((d)=> d.abonnement),
 		abonnement_class = new Abonnement(user_abonnement, user_abonnement.frequency);
@@ -1229,7 +1229,23 @@ try{
 
 			memorial._id = response.insertedId;
 			response = await guest.request(memorialEndpoint);
-			memorials = await db_memorials.find({ status: { $ne:'suspended' } }).toArray();
+			memorials = await db_memorials.aggregate([
+				{
+					$match: { status: { $ne:'suspended' } }
+				},
+				{
+					$project:{
+						"videos":{ $size:"$videos" },
+						"gallery":{ $size:"$gallery" },
+						"name":1,
+						"birth_date":1,
+						"birth_place":1,
+						"death_date":1,
+						"death_place":1,
+						"date_created":1
+					}
+				}
+			]).sort({'date_created':-1}).toArray();
 			jsonResponse = await response.json();
 
 			assert.equal(response.status,200,`The server should return a 200 status code when a request for the public memorial endpoint is made`);
@@ -1240,6 +1256,11 @@ try{
 				jsonResponse.memorials[0]._id,
 				`The memorial returned by the server should have a id of ${memorials[0]._id}`
 			);
+
+			jsonResponse.memorials.forEach((m,index)=>{
+				assert.strictEqual(m.videos, memorials[index].videos)
+				assert.strictEqual(m.gallery, memorials[index].gallery)
+			})
 
 			response = await db_memorials.deleteOne({ _id: memorial._id });
 
@@ -1408,9 +1429,343 @@ try{
 		})
 	})
 
-	await test("Testing admin operation", { skip:false, signal: aborter.signal }, async(t)=>{
+	await test("Testing navigation", { skip:false, signal: aborter.signal }, async (t)=>{
+		const LIMIT = process.env.LIMIT.split(','),
+		max_limit = LIMIT.at(-1),
+		min_limit = LIMIT[0];
 
-		await t.test("Testing Abonnement operation", async(t)=>{
+		if(!LIMIT){
+			throw Error("NO LIMIT ENVIRONMENT VARIABLE FOUND");
+		}
+
+		await t.test("Testing memorial navigation", async (t)=>{
+			await t.test("When the user include the skip or limit query the server should filter the result by those query", async()=>{
+				let max = 10,
+				memorials = Array.from({ length:max }).map((_,_index)=>{
+					let memorial = generateMemorial().toJSON(),
+					userId = manager1.get_id(),
+					d = new Date();
+
+					d.setDate(d.getDate() + _index);
+
+					for(let name in memorial){
+						if(name.includes('date')){
+							memorial[name] = new Date(memorial[name]);
+						}
+					}
+
+					memorial.created_by = userId;
+					memorial.gallery = [];
+					memorial.videos = [];
+					memorial.view_count = 0;
+					memorial.date_created = memorial.date_updated = new Date(d);
+
+					return memorial;
+				}),
+				total;
+
+				response = await db_memorials.insertMany(memorials);
+				total = await db_memorials.countDocuments();
+
+				assert.equal(response.insertedCount, memorials.length, `The number of inserted`);
+
+				memorials.sort((x,y)=> x.date_created > y.date_created ? -1: 1).map((memorial)=> {
+					memorial.tributes_count = 0;
+					return memorial;
+				});
+
+				dateToString(memorials); ObjectIdToString(memorials);
+
+				responses = await Promise.all([
+					guest.request(`${memorialEndpoint}?limit=1`),
+					guest.request(`${memorialEndpoint}?skip=2&limit=2`),
+					guest.request(`${memorialEndpoint}?skip=3&limit=3`)
+				]);
+
+				responses.forEach((response)=>{
+					assert.equal(response.status, 200);
+				})
+
+				jsonResponse = await responses[0].json();
+				assert.equal(jsonResponse.memorials.length,1, `The memorials array should only contain one item`);
+				assert.equal(jsonResponse.total, total);
+				assert.deepEqual(jsonResponse.memorials[0], memorials[0]);
+
+				jsonResponse = await responses[1].json();
+				assert.equal(jsonResponse.memorials.length, 2, `The memorials array should contain two item`);
+				assert.equal(jsonResponse.total,total);
+				assert.deepEqual(jsonResponse.memorials, memorials.slice(2,4));
+
+				jsonResponse = await responses[2].json();
+				assert.equal(jsonResponse.memorials.length,3 , `The memorials array should only contain ${max -3} item`);
+				assert.equal(jsonResponse.total, total);
+				assert.deepEqual(jsonResponse.memorials, memorials.slice(3,6))
+			})
+
+			await t.test("When the request contain bad skip or limit query the server should return s 422 status code", async(t)=>{
+				responses = await Promise.all([
+					guest.request(`${memorialEndpoint}?limit=maman`),
+					guest.request(`${memorialEndpoint}?skip=tonton`),
+					guest.request(`${memorialEndpoint}?skip=2&limit=gal`),
+					guest.request(`${memorialEndpoint}?skip=ton&limit=4`),
+					guest.request(`${memorialEndpoint}?limit=0`),
+					guest.request(`${memorialEndpoint}?limit=${max_limit + 1}`),
+					guest.request(`${memorialEndpoint}?skip=-1`)
+				])
+
+				responses.forEach((response,index)=>{
+					assert.equal(response.status,422, `The server should return a 422 status code -- ${index}`)
+				})
+			})
+		})
+
+		await t.test("Testing tributes navigation", async (t)=>{
+			let memorial = await db_memorials.find().sort('date_created',-1).next(),
+			url = tributeEndpoint.replace(':memorial_id', memorial._id.toString());
+
+			await t.test("When the request include the skip or limit query the server should filter the response with those query", async()=>{
+				let tributes = Array.from({ length:5 }).map((_,index)=>{
+					let tribute = generateTribute();
+
+					tribute.memorial_id = memorial._id;
+
+					tribute.date_created = new Date();
+					tribute.author_email = manager2.get_email();
+
+					return tribute;
+				}),
+				total;
+
+				response = await db_tributes.insertMany(tributes);
+				total = await db_tributes.countDocuments({ memorial_id: memorial._id })
+
+				tributes.sort((x,y)=> x._id.toString() > y._id.toString() ? -1:1);
+
+				assert.equal(response.insertedCount, tributes.length);
+
+				ObjectIdToString(tributes); dateToString(tributes);
+
+				responses = await Promise.all([
+					guest.request(`${url}?limit=1`),
+					guest.request(`${url}?skip=1&limit=2`)
+				])
+
+				responses.forEach((response)=>{
+					assert.equal(response.status, 200);
+				})
+
+				jsonResponse = await responses[0].json();
+				
+				let tt = jsonResponse.tributes[0];
+
+				assert.equal(jsonResponse.tributes.length, 1, `The server should have returned an array of tributes with one element`);
+				assert.equal(jsonResponse.total, total);
+				assert.deepEqual(jsonResponse.tributes[0], tributes[0])
+
+				jsonResponse = await responses[1].json();
+				assert.equal(jsonResponse.tributes.length, 2, `The server should have returned an array of tributes with two element`);
+				assert.equal(jsonResponse.total, total);
+				assert.deepEqual(jsonResponse.tributes, tributes.slice(1,3))
+			})
+
+			await t.test("When the server include a bad query the server should return a 422 status code", async()=>{
+				responses = await Promise.all([
+					guest.request(`${url}?limit=onon`),
+					guest.request(`${url}?skip=moon`),
+					guest.request(`${url}?skip=1&limit=ta`),
+					guest.request(`${url}?skip=on&limit=3`),
+					guest.request(`${url}?limit=${max_limit + 1}`),
+					guest.request(`${url}?skip=-1`)
+				])
+
+				responses.forEach((response)=>{
+					assert.equal(response.status, 422);
+				})
+			})
+		})
+
+		await t.test("Testing memorial resource navigation", async (t)=>{
+			let memorial = await db_memorials.find().sort('date_created',-1).next(),
+			urlP = memorialPictureEndpoint.replace(':memorial_id', memorial._id),
+			urlV = memorialVideoEndpoint.replace(':memorial_id', memorial._id);
+
+			await t.test("When the request contain the skip or limit query the server should filter the response with those query", async()=>{
+				let pictures = generatePictureData(5)[0].map((p)=> ({ src: p.name, src_min: p.name, title:'Yassir'})),
+				videos = generateVideoData(5)[0].map((v)=> ({ src: v.name, src_min: v.name, title:'Yosser'}));
+
+				responses = await Promise.all([
+					db_memorials.updateOne({ _id: memorial._id }, { $set: { "gallery": pictures } }),
+					db_memorials.updateOne({ _id: memorial._id }, { $set: { "videos": videos} })
+				])
+
+				responses.forEach((response)=> assert.equal(response.modifiedCount,1))
+
+				responses = await Promise.all([
+					guest.request(`${urlP}?limit=1`),
+					guest.request(`${urlP}?skip=1&limit=2`),
+					guest.request(`${urlV}?limit=1`),
+					guest.request(`${urlV}?skip=1&limit=2`)
+				])
+
+				responses.forEach((response)=> assert.equal(response.status, 200))
+
+				jsonResponse = await responses[0].json();
+				assert.equal(jsonResponse.pictures.length, 1, `The server should return a pictures array with one element`);
+				assert.equal(jsonResponse.total, pictures.length)
+				assert.deepEqual(jsonResponse.pictures[0], pictures[0]);
+
+				jsonResponse = await responses[1].json();
+				assert.equal(jsonResponse.pictures.length,2, `The server should return a pictures array with two element`);
+				assert.equal(jsonResponse.total, pictures.length);
+				assert.deepEqual(jsonResponse.pictures, pictures.slice(1,3));
+
+				jsonResponse = await responses[2].json();
+				assert.equal(jsonResponse.videos.length,1, `The server should return a videos array with one element`);
+				assert.equal(jsonResponse.total, videos.length);
+				assert.deepEqual(jsonResponse.videos[0], videos[0]);
+
+				jsonResponse = await responses[3].json();
+				assert.equal(jsonResponse.videos.length,2, `The server should return a videos array with two elemengt`);
+				assert.equal(jsonResponse.total,videos.length);
+				assert.deepEqual(jsonResponse.videos, videos.slice(1,3))
+			})
+
+			await t.test("When the request contain bad query the server should return a 422 status code", async()=>{
+				responses = await Promise.all([
+					guest.request(`${urlP}?limit=on`),
+					guest.request(`${urlP}?skip=off`),
+					guest.request(`${urlP}?skip=0&limit=on`),
+					guest.request(`${urlP}?skip=on&limit=2`),
+					guest.request(`${urlV}?limit=on`),
+					guest.request(`${urlV}?skip=off`),
+					guest.request(`${urlV}?skip=0&limit=on`),
+					guest.request(`${urlV}?skip=on&limit=2`)
+				])
+
+				responses.forEach((response, index)=> assert.equal(response.status, 422, index))
+			})
+		})
+
+		await t.test("Testing user transaction", async (t)=>{
+			await t.test("When the request contain the skip or limit query the server should include those query when processing the response", async()=>{
+				let users = Array.from({ length:10 }).map((_,index)=>{
+					let date = new Date(),
+					user = generateUser();
+
+					date.setDate(date.getDate() + index);
+
+					user.date_created = date;
+
+					return user;
+				}),
+				total;
+
+				response = await db_users.insertMany(users);
+				users.sort((x,y)=> x.date_created > y.date_created ? -1:1);
+				total = await db_users.countDocuments();
+				users = users.map((user)=>{ delete user.password; return user })
+
+				ObjectIdToString(users); dateToString(users);
+
+				assert.equal(response.insertedCount, users.length);
+
+				responses = await Promise.all([
+					admin1.request(`${userEndpoint}?limit=1`),
+					admin1.request(`${userEndpoint}?skip=1&limit=2`)
+				]);
+
+				responses.forEach((response)=> assert.equal(response.status,200));
+
+				jsonResponse = await responses[0].json();
+				assert.equal(jsonResponse.users.length, 1, `The server should return an users array with one element`);
+				assert.equal(jsonResponse.total, total);
+				assert.deepEqual(jsonResponse.users[0], users[0]);
+
+				jsonResponse = await responses[1].json();
+				assert.equal(jsonResponse.users.length, 2, `The server should return an users array with two element`);
+				assert.equal(jsonResponse.total, total);
+				assert.deepEqual(jsonResponse.users, users.slice(1,3));
+			})
+
+			await t.test("When the request contain bad query the server should return a 422 status code", async()=>{
+				responses = await Promise.all([
+					admin1.request(`${userEndpoint}?limit=on`),
+					admin1.request(`${userEndpoint}?skip=on`),
+					admin1.request(`${userEndpoint}?limit=${max_limit + 1}`),
+					admin1.request(`${userEndpoint}?skip=-1`)
+				])
+
+				responses.forEach((response)=> assert.equal(response.status, 422))
+			})
+		})
+
+		await t.test("Test transaction navigation", async(t)=>{
+			let user = await db_users.find({ email: manager2.get_email() }).next(),
+			abonnements = await db_abonnements.find().toArray();
+
+			await t.test("When the request contain the skip or limit query the server should return a response with the query filter", async()=>{
+				let orders = Array.from({ length:5 }).map((_,index)=>{
+					let order = generateOrder(user.email,'t-1'),
+					d = order.due_date,
+					dd = new Date();
+
+					d.setDate(d.getDate() + index);
+					dd.setDate(dd.getDate() + index);
+
+					order.abonnementId = abonnements[0]._id;
+					order.abonnementType = abonnements[0].type;
+					order.date_created = dd;
+
+					return order;
+				}),
+				total;
+
+				response = await db_orders.insertMany(orders);
+				total = await db_orders.countDocuments({ email: user.email });
+
+				orders.sort((x,y)=> x.date_created > y.date_created ? -1:1);
+
+				ObjectIdToString(orders); dateToString(orders); Decimal128ToNumber(orders);
+
+				assert.equal(response.insertedCount, orders.length);
+
+				responses = await Promise.all([
+					manager2.request(`${orderEndpoint}?limit=1`),
+					manager2.request(`${orderEndpoint}?skip=1&limit=2`),
+				])
+
+				responses.forEach((response)=>{
+					assert.equal(response.status,200,)
+				});
+
+				jsonResponse = await responses[0].json();
+				assert.equal(jsonResponse.orders.length,1, `The server should return an array of orders with one lement`);
+				assert.equal(jsonResponse.total, total);
+				assert.deepEqual(jsonResponse.orders[0], orders[0]);
+
+				jsonResponse = await responses[1].json();
+				assert.equal(jsonResponse.orders.length,2, `The server should return an array of orders with two element`);
+				assert.equal(jsonResponse.total, total);
+				assert.deepEqual(jsonResponse.orders, orders.slice(1,3));
+			})
+
+			await t.test("When the request contain bad query the server should return a 422 status code", async()=>{
+				responses = await Promise.all([
+					manager2.request(`${orderEndpoint}?limit=on`),
+					manager2.request(`${orderEndpoint}?skip=off`),
+					manager2.request(`${orderEndpoint}?skip=1&limit=on`),
+					manager2.request(`${orderEndpoint}?skip=on&limit=1`),
+					manager2.request(`${orderEndpoint}?skip=-1`),
+					manager2.request(`${orderEndpoint}?limit=${max_limit + 1}`)
+				]);
+
+				responses.forEach((response)=> assert.equal(response.status,422))
+			})
+		})
+	})
+
+	await test("Testing admin operation", { skip:false, signal: aborter.signal }, async(t)=>{
+		await t.test("Testing Abonnement operation", { skip:false, signal: aborter.signal }, async(t)=>{
 			await t.test("The admin should be able to add new abonnement",async()=>{
 				let abonnement = generateAbonnement();
 
@@ -1462,7 +1817,7 @@ try{
 			})
 		})
 
-		await t.test("Testing User management", async (t)=>{
+		await t.test("Testing User management", { skip:false, signal: aborter.signal }, async (t)=>{
 
 			await t.test("When the admin issue a get request to the user endpoint the list of user in the database should be returned",async()=>{
 				let users = await db_users.find().toArray();
@@ -1610,7 +1965,7 @@ try{
 			})
 		})
 
-		await t.test("Testing Transaction viewing", async (t)=>{
+		await t.test("Testing Transaction viewing", { skip:false, signal: aborter.signal }, async (t)=>{
 			await t.test("The admin should be able to view all the transaction that occured in the order collection",async()=>{
 				let orders = await db_orders.find().sort('date_created',-1)
 				.project({

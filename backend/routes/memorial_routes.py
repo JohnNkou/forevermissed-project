@@ -6,7 +6,7 @@ from models import Memorial, MemorialCreate, MemorialResponse, Tribute, TributeC
 from auth import get_current_manager, get_current_admin, get_current_user, get_manager_with_abonnement, get_db_memorial
 from bson import ObjectId
 from datetime import datetime
-from utils import handleUploadedFiles, hasFileSizesGreaterThan
+from utils import handleUploadedFiles, hasFileSizesGreaterThan, date_to_string, get_limit, objectId_to_string
 from typing import Optional, List
 from pathlib import Path
 import constants
@@ -18,6 +18,9 @@ import secrets
 router = APIRouter(prefix="/api", tags=["Memorials"])
 
 db = None
+limit = get_limit()
+max_limit = limit[-1]
+min_limit = limit[0]
 
 def set_db(database: AsyncIOMotorDatabase):
     global db
@@ -27,21 +30,21 @@ def set_db(database: AsyncIOMotorDatabase):
 @router.get("/memorials")
 async def list_memorials(
     skip: int = Query(0, ge=0),
-    limit: int = Query(12, ge=1, le=100),
+    limit: int = Query(min_limit, ge=1, le=max_limit),
     search: Optional[str] = None
 ):
     query = { "status": { "$ne":"suspended" } }
     if search:
-        query = {
-            "$or": [
-                {"name": {"$regex": search, "$options": "i"}},
-                {"birth_place": {"$regex": search, "$options": "i"}},
-                {"death_place": {"$regex": search, "$options": "i"}}
-            ]
-        }
-    
+        query['$or'] = [
+            {"name": {"$regex": search, "$options": "i"}},
+            {"birth_place": {"$regex": search, "$options": "i"}},
+            {"death_place": {"$regex": search, "$options": "i"}}
+        ]
+
     total = await db.memorials.count_documents(query)
     memorials = await db.memorials.find(query).sort("date_created", -1).skip(skip).limit(limit).to_list(limit)
+
+    date_to_string(memorials)
     
     # Get tribute counts for each memorial
     result = []
@@ -96,6 +99,9 @@ async def get_memorial(memorial_id: str):
             status_code=402,
             detail="Paiement required"
         )
+
+
+    date_to_string(memorial)
     
     tributes_count = await db.tributes.count_documents({"memorial_id": memorial['_id']})
 
@@ -177,7 +183,11 @@ async def create_memorial(
 
 # Public Endpoint Get tributes for a memorial
 @router.get("/memorials/{memorial_id}/tributes")
-async def get_tributes(memorial = Depends(get_db_memorial)):
+async def get_tributes(
+    memorial_id : str,
+    memorial = Depends(get_db_memorial), 
+    skip: int = Query(0,ge=0),
+    limit: int = Query(limit[1], gt=0, le=limit[-1])):
     if not memorial:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -189,23 +199,29 @@ async def get_tributes(memorial = Depends(get_db_memorial)):
             status_code=402,
             detail="Memorial suspended"
         )
+
+    args = { "memorial_id": memorial['_id'] }
     
-    tributes = await db.tributes.find(
-        {"memorial_id": str(memorial['_id']), "approved": True}
-    ).sort("created_at", -1).to_list(100)
+    tributes = await db.tributes.find(args).sort("_id", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.tributes.count_documents(args)
+
+    date_to_string(tributes)
+    objectId_to_string(tributes)
     
     result = [
         TributeResponse(
             _id=str(tribute["_id"]),
             author_name=tribute["author_name"],
+            author_email=tribute["author_email"],
+            memorial_id=tribute['memorial_id'],
             text=tribute["text"],
             avatar=tribute.get("avatar"),
-            created_at=tribute["date_created"]
+            date_created=tribute["date_created"]
         )
         for tribute in tributes
     ]
     
-    return result
+    return  { "tributes": tributes, "total":total }
 
 # Add tribute to memorial
 @router.post("/memorials/{memorial_id}/tributes", status_code=201)
@@ -272,13 +288,13 @@ async def add_tribute(memorial_id: str, tribute_data: TributeCreate):
 
             if result.inserted_id:
                 try:
-                    maxTribute = await db.tributes.count_documents({"memorial_id": str(memorial['_id']) })
                     response = await db.users.update_one(
                         { "_id": memorial['created_by'] }, 
-                        { "$set": { "resources.tributeSent": maxTribute } })
+                        { "$inc": { "resources.tributeSent": 1 } })
 
                     if not response.modified_count:
                         print("The maxTribute resource of the user couldn't be updated",response)
+                        raise HTTPException(500, "Couldn't update the tributeSent")
                 except Exception as e:
                     print(e)
                     raise HTTPException(
@@ -296,6 +312,35 @@ async def add_tribute(memorial_id: str, tribute_data: TributeCreate):
         "message": "Tribute added successfully",
         "id": str(result.inserted_id)
     }
+
+#Get pictures from memorial
+@router.get("/memorials/{memorial_id}/pictures", status_code=200)
+async def get_pictures(
+    memorial_id : str, 
+    skip: int = Query(0, ge=0),
+    limit: int = Query(min_limit, gt=0, le=max_limit)
+):
+    memorial = await db.memorials.aggregate([
+        { "$match": { "_id": ObjectId(memorial_id) } }, 
+        {
+            "$project":{
+                "p_gallery": {
+                    "$slice": ["$gallery",skip,limit]
+                },
+                "size":{
+                    "$size": "$gallery"
+                }
+            }
+        }
+    ]).next()
+
+    if memorial:
+        total = memorial['size']
+        del memorial['size']
+
+        return { "pictures": memorial['p_gallery'], "total": total }
+    else:
+        raise HTTPException(404)
 
 # Add pictures to memorial
 @router.post("/memorials/{memorial_id}/pictures", status_code=201)
@@ -412,6 +457,36 @@ async def delete_pictures(
             raise HTTPException(400,'Resource not found')
     else:
         raise HTTPException(status_code=401)
+
+#Get videos memorial
+@router.get("/memorials/{memorial_id}/videos", status_code=200)
+async def get_videos(
+    memorial_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(min_limit, gt=0, le=max_limit)
+    ):
+    memorial = await db.memorials.aggregate([
+        { "$match": { "_id": ObjectId(memorial_id) } }, 
+        {
+            "$project":{
+                "p_videos":{
+                        "$slice": ["$videos",skip, limit]
+                },
+                "size":{
+                    "$size": "$videos"
+                }
+            }
+        }
+    ]).next()
+
+    if memorial:
+        total = memorial["size"]
+
+        del memorial["size"]
+
+        return { "videos": memorial['p_videos'], "total": total }
+    else:
+        raise HTTPException(404)
 
 # Add videos to memorial
 @router.post("/memorials/{memorial_id}/videos", status_code=201)
@@ -573,6 +648,7 @@ async def get_resource(
                         print("Attempted directory traversla", file_path)
                         raise HTTPException(404,'File not found')
                 else:
+                    print("FILE PATH DON'T EXIST", file_path)
                     raise HTTPException(404, "File don't exists");
             else:
                 print("Trying to access resource of another memorial");

@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends, status, Response
+from fastapi import APIRouter, HTTPException, Depends, status, Response, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from auth import get_order_data, get_current_manager, get_current_admin, get_current_user
+from utils import get_limit
 from models import PaymentCard
 from bson import ObjectId, Decimal128
 from datetime import datetime
@@ -12,13 +13,21 @@ router = APIRouter(prefix="/api/order", tags=["Paiments"])
 
 # This will be injected from server.py
 db = None
+limit = get_limit()
+max_limit = limit[-1]
+min_limit = limit[0]
 
 def set_db(database: AsyncIOMotorDatabase):
     global db
     db = database
 
 @router.get("/", status_code=200)
-async def get(user: dict = Depends(get_current_user), status : str = None):
+async def get(
+    user: dict = Depends(get_current_user), 
+    status : str = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(min_limit, gt=0, le=max_limit)
+    ):
     query = {}
     isManager = user['role'] == 'manager'
 
@@ -38,7 +47,8 @@ async def get(user: dict = Depends(get_current_user), status : str = None):
             "abonnementId": { "$toString": "$abonnementId" },
             "price":1, "currency":1, "email":1, "status":1,"date_created":1, "due_date":1, "abonnementType":1
         }
-    ).sort('date_created', -1).to_list(1000)
+    ).sort('date_created', -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.orders.count_documents(query)
 
     for order in response:
         if order.get('date_created'):
@@ -47,7 +57,7 @@ async def get(user: dict = Depends(get_current_user), status : str = None):
 
         order['price'] = order['price'].to_decimal()
 
-    return { "orders": response }
+    return { "orders": response, "total":total }
 
 """
     201 -> Successfull ordering

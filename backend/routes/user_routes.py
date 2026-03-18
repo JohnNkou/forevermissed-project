@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from models import User, UserModif, UserResponse, Card
 from auth import get_current_admin, get_current_user, get_password_hash, get_current_manager
+from utils import get_limit, objectId_to_string, date_to_string
 from bson import ObjectId
 from typing import List
 
@@ -9,27 +10,28 @@ router = APIRouter(prefix="/api/users", tags=["User Management"])
 
 db = None
 
+limit = get_limit()
+min_limit = limit[0]
+max_limit = limit[-1]
+
 def set_db(database: AsyncIOMotorDatabase):
     global db
     db = database
 
 @router.get("/")
-async def list_users(current_user: dict = Depends(get_current_admin)):
-    users = await db.users.find().sort("created_at", -1).to_list(1000)
+async def list_users(
+    current_user: dict = Depends(get_current_admin),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(min_limit, gt=0, le=max_limit)
+    ):
+    
+    users = await db.users.find(projection=["email","name","role","profile_picture","date_created"]).sort("date_created", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.users.count_documents({});
 
-    return {
-        "users":    [
-            { 
-                "id": str(user["_id"]),
-                "email": user["email"],
-                "name": user["name"],
-                "role": user["role"],
-                "profile_picture": user.get("profile_picture"),
-                "date_created": user["date_created"]
-            }
-            for user in users
-        ] 
-    } 
+    objectId_to_string(users)
+    date_to_string(users)
+
+    return { "users": users, "total":total } 
 
 @router.post('/', status_code=201)
 async def add_user(user: User, current_user : dict = Depends(get_current_admin)):

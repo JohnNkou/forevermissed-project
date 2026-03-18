@@ -302,8 +302,8 @@ class Resource(BaseModel):
 class MemorialResponse(BaseModel):
     id: str = Field(alias="_id")
     name: str
-    birth_date: Optional[datetime] = None
-    death_date: Optional[datetime] = None
+    birth_date: str
+    death_date: Optional[str] = None
     birth_place: Optional[str] = None
     death_place: Optional[str] = None
     biography: Optional[str] = None
@@ -314,8 +314,8 @@ class MemorialResponse(BaseModel):
     gallery: List[Resource] = []
     tributes_count: int = 0
     view_count: int
-    date_created: datetime
-    date_updated: datetime
+    date_created: str
+    date_updated: str
     created_by: PyObjectId
     videos: List[Resource]
 
@@ -346,9 +346,11 @@ class TributeCreate(BaseModel):
 class TributeResponse(BaseModel):
     id: str = Field(alias="_id")
     author_name: str
+    author_email: str
     text: str
+    memorial_id: str
     avatar: Optional[str] = None
-    created_at: datetime
+    date_created: str
 
     class Config:
         populate_by_name = True
@@ -593,6 +595,7 @@ class Abonnement():
             video.release()
 
             if duration_seconds > self.maxVideoSecond:
+                print("VIDEO DURATION BREACHED. %s > %s" % (duration_seconds, self.maxVideoSecond))
                 return True
 
         return False

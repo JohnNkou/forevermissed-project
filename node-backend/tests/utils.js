@@ -5,6 +5,7 @@ import fs from 'node:fs'
 import assert from 'node:assert'
 import dotenv from 				'dotenv'
 import { ObjectId, Decimal128 } from 'mongodb'
+import bcrypt from 'bcrypt'
 
 Promise.sequence = async function(...tasks){
 	let results = [];
@@ -419,7 +420,7 @@ export function generateVideoData(number, {category=1, video_size=50, picture_si
 	return [videos, pictures_mini, titles]
 }
 
-export function generateMemorial(role='admin'){
+export function generateMemorial(){
 	let form = new FormData();
 
 	form.append("name", faker.person.fullName() + faker.string.uuid().slice(0,5))
@@ -460,6 +461,10 @@ export function getUserResource(user_id, collection){
 	}).next();
 }
 
-export function getEnvData(){
-	dotenv.config({ path:['../.env','../../database/.env','../../.env'] });
+export function generatePassword(password){
+	return bcrypt.hash(password,1)
+}
+
+export function getEnvData(start_path='../'){
+	dotenv.config({ path:[`${start_path}.env`,`${start_path}../database/.env`,`${start_path}../.env`] });
 }
