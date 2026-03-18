@@ -284,7 +284,7 @@ export async function waitAction(action,times=5,interval=50){
 	})
 }
 
-export function generatePictureData(number,{size_1=1000, size_2=1000}={}){
+export function generatePictureData(number,{size_1=50, size_2=50}={}){
 	const pictures = [],
 	pictures_mini = [],
 	names = [];
@@ -391,7 +391,7 @@ export function ObjectIdToString(data){
 	})
 }
 
-export function generateVideoData(number, {category=1, video_size=1000, picture_size=1000} = {}){
+export function generateVideoData(number, {category=1, video_size=50, picture_size=50} = {}){
 	const videos = [],
 	pictures_mini = [],
 	titles = [];
@@ -408,7 +408,7 @@ export function generateVideoData(number, {category=1, video_size=1000, picture_
 			bytes = new ArrayBuffer(video_size);
 		}
 		else{
-			bytes = fs.readFileSync(`videos/${category}.MOV`);
+			bytes = fs.readFileSync(`resources/${category}.MOV`);
 		}
 
 		videos.push(new File([bytes], faker.string.nanoid(5) + ".mov"));
@@ -429,9 +429,9 @@ export function generateMemorial(role='admin'){
 	form.append("death_place", faker.location.city())
 	form.append("biography", faker.word.words(40))
 	form.append("obituary", faker.word.words(100))
-	form.append("image", new File([new ArrayBuffer(1000)], faker.string.nanoid(5) + ".jpeg"))
-	form.append("background_image",	new File([new ArrayBuffer(1000)], faker.string.nanoid(5) + ".jpeg"))
-	form.append("background_sound", new File([fs.readFileSync('./audios/1.aiff')], faker.string.nanoid(5) + ".aiff"))
+	form.append("image", new File([new ArrayBuffer(50)], faker.string.nanoid(5) + ".jpeg"))
+	form.append("background_image",	new File([new ArrayBuffer(50)], faker.string.nanoid(5) + ".jpeg"))
+	form.append("background_sound", new File([new ArrayBuffer(50)], faker.string.nanoid(5) + ".aiff"))
 
 	return form;
 }

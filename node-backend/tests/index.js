@@ -475,10 +475,7 @@ try{
 
 						assert.ok(_value,`The field ${name} should be returned by the server`);
 
-						if(['birth_date','death_date'].includes(name)){
-							_value = _value.slice(0,-3) + 'Z';
-						}
-						else if(value instanceof File){
+						if(value instanceof File){
 							let extension =  path.extname(value.name);
 
 							assert.ok(_value.endsWith(extension),`The field ${name} should end with the extension ${extension}`);
