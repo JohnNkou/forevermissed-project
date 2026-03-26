@@ -9,6 +9,7 @@ import { useParams } from 'react-router-dom'
 import { Storage } from '../utils/storage'
 import { useUserAbonnement } from '../contexts/UserAbonnementContext'
 import { useViewer } from '../contexts/ResourceViewerContext'
+import { useSettings } from '../contexts/SettingsContext'
 import { Edit, Play, Trash } from 'lucide-react'
 
 const TAB_STORAGE_NAME='memorial-tab-value';
@@ -291,7 +292,34 @@ export function ResourceActionElement({ show=true, remove=false }){
 export function MemorialResource({ id, resources, max, onUploaded, accept, type, title, showAdd=true, actionElement, actionClickHandler }){
 	let [showDialog, setShowDialog] = useState(false),
 	[loading, setLoading] = useState(false),
+	[current, setCurrent] = useState(0),
+	settings = useSettings(),
+	limit = settings && settings.settings.navigation.limit[1] || 30,
+	prev = current - limit,
+	next = current + limit,
+	total = resources.length,
 	ResourceComponent;
+
+	console.log('C',current);
+	console.log('P',prev);
+	console.log('N', next);
+	console.log('T',total);
+
+	function navigate(event){
+		event.preventDefault();
+
+		let target = event.target,
+		nextCurrent = target.getAttribute('nextCurrent');
+
+		if(nextCurrent){
+			setLoading(()=> true);
+			setCurrent(()=> Number(nextCurrent));
+
+			setTimeout(()=>{
+				setLoading(()=> false);
+			},1000);
+		}
+	}
 
 	return <>
 		<div className='flex gap-2 items-center'>
@@ -302,7 +330,7 @@ export function MemorialResource({ id, resources, max, onUploaded, accept, type,
 		{ loading && <p>Chargment....</p>  }
 		<div onClick={actionClickHandler} className='grid grid-cols-6 gap-2 mt-5 overflow-hidden'>
 			{ !resources.length && <p>Aucune resource</p> }
-			{ resources.map((resource, key)=>{
+			{ resources.slice(current,current + limit).map((resource, key)=>{
 				let src_min = resource.src_min + '?memorial_id=' + id;
 
 				return <div className='flex flex-col' index={key} type={type} key={key}>
@@ -313,6 +341,10 @@ export function MemorialResource({ id, resources, max, onUploaded, accept, type,
 					{ actionElement && actionElement }
 				</div>
 			}) }
+		</div>
+		<div className='flex justify-center mt-4 gap-4'>
+			<Button onClick={navigate} nextCurrent={prev} className={current > 0 ? '':'invisible'}>prev</Button>
+			<Button onClick={navigate} nextCurrent={next} className={next <= total ? '':'invisible'}>suivant</Button>
 		</div>
 		{ showDialog && <FileUploader memorial_id={id} field_name={type} type={type} accept={accept} onUploaded={onUploaded} onClose={()=> setShowDialog(false)} /> }
 	</>

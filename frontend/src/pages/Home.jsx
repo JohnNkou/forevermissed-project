@@ -4,21 +4,25 @@ import { ArrowRight, Heart, Users, MessageSquare, ChevronLeft, ChevronRight } fr
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent } from '../components/ui/card';
-import { memorialsApi } from '../utils/api';
+import { memorialsApi, statsApi } from '../utils/api';
 import { useSettings } from '../contexts/SettingsContext';
 import { mockTestimonials, mockCategories } from '../mock/data';
+import MemorialCard from '../components/MemorialCard'
+import { useToast } from '../hooks/use-toast'
 
 const Home = () => {
-  const navigate = useNavigate();
-  const { settings } = useSettings();
-  const [lovedOneName, setLovedOneName] = useState('');
-  const [currentTestimonial, setCurrentTestimonial] = useState(0);
-  const [memorials, setMemorials] = useState([]);
-  const [stats, setStats] = useState({ families: '288,277', visitors: '229,123,767', tributes: '6,027,951' });
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate(),
+  { settings } = useSettings(),
+  [lovedOneName, setLovedOneName] = useState(''),
+  [currentTestimonial, setCurrentTestimonial] = useState(0),
+  [memorials, setMemorials] = useState([]),
+  [stats, setStats] = useState({}),
+  [loading, setLoading] = useState(true),
+  toast = useToast();
 
   useEffect(() => {
     loadMemorials();
+    loadStats();
   }, []);
 
   const loadMemorials = async () => {
@@ -31,6 +35,19 @@ const Home = () => {
       setLoading(false);
     }
   };
+
+  const loadStats = ()=>{
+    statsApi.list().then((response)=>{
+      let data = response.data.stats;
+
+      setStats(data);
+    }).catch((error)=>{
+      toast({
+        title:"Erreur",
+        description:"Les statistiques n'ont pas pu être chargés"
+      })
+    })
+  }
 
   const handleGetStarted = (e) => {
     e.preventDefault();
@@ -107,32 +124,7 @@ const Home = () => {
               <div className="col-span-full text-center py-8 text-gray-500">Aucun memoriaux</div>
             ) : (
               memorials.map((memorial) => (
-                <Card
-                  key={memorial._id}
-                  className="cursor-pointer hover:shadow-lg transition-shadow duration-300"
-                  onClick={() => navigate(`/memorial/${memorial._id}`)}
-                >
-                  <CardContent className="p-0">
-                    <div className="aspect-square bg-gray-200 rounded-t-lg overflow-hidden">
-                      <img
-                        src={memorial.image + '?memorial_id='+memorial._id}
-                        alt={memorial.name}
-                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                      />
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-semibold text-gray-900 text-sm mb-1 line-clamp-2">
-                        {memorial.name}
-                      </h3>
-                      <p className="text-xs text-gray-600">
-                        {memorial.birth_date && new Date(memorial.birth_date).getFullYear()} - {memorial.death_date && new Date(memorial.death_date).getFullYear()}
-                      </p>
-                      {(memorial.birth_place || memorial.death_place) && (
-                        <p className="text-xs text-gray-500 mt-1">{memorial.death_place || memorial.birth_place}</p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                <MemorialCard memorial={memorial} />
               ))
             )}
           </div>
@@ -154,14 +146,14 @@ const Home = () => {
               <div className="flex justify-center mb-4">
                 <Users className="w-12 h-12 text-rose-500" />
               </div>
-              <div className="text-4xl font-bold text-gray-900 mb-2">{stats.families}</div>
-              <div className="text-gray-600">Familles</div>
+              <div className="text-4xl font-bold text-gray-900 mb-2">{stats.memorials}</div>
+              <div className="text-gray-600">Memorials</div>
             </div>
             <div className="text-center">
               <div className="flex justify-center mb-4">
                 <Heart className="w-12 h-12 text-rose-500" />
               </div>
-              <div className="text-4xl font-bold text-gray-900 mb-2">{stats.visitors}</div>
+              <div className="text-4xl font-bold text-gray-900 mb-2">{stats.visitors || 0}</div>
               <div className="text-gray-600">Visiteurs</div>
             </div>
             <div className="text-center">

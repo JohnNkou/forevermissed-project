@@ -42,39 +42,44 @@ async def list_memorials(
         ]
 
     total = await db.memorials.count_documents(query)
-    memorials = await db.memorials.find(query).sort("date_created", -1).skip(skip).limit(limit).to_list(limit)
-
-    date_to_string(memorials)
+    memorials = await db.memorials.aggregate([
+        { "$match": query },
+        { 
+            "$project":{
+                "name": 1,
+                "birth_date": 1,
+                "death_date": 1,
+                "birth_place": 1,
+                "birth_date": 1,
+                "death_place": 1,
+                "image":1,
+                "date_created":1,
+                "view_count":1,
+                "videos":{
+                    "$size": "$videos"
+                },
+                "gallery":{
+                    "$size": "$gallery"
+                }
+            },
+        },
+        { "$sort":{ "date_created": -1 } },
+        { "$skip": skip },
+        { "$limit": limit }
+    ]).to_list(limit)
     
     # Get tribute counts for each memorial
     result = []
     for memorial in memorials:
         tributes_count = await db.tributes.count_documents({"memorial_id": memorial["_id"]})
-        result.append(MemorialResponse(
-            _id=str(memorial["_id"]),
-            name=memorial["name"],
-            birth_date=memorial.get("birth_date"),
-            death_date=memorial.get("death_date"),
-            birth_place=memorial.get("birth_place"),
-            death_place=memorial.get("death_place"),
-            biography=memorial.get("biography"),
-            obituary=memorial.get("obituary"),
-            image=memorial.get("image"),
-            background_image=memorial.get('background_image'),
-            background_sound=memorial.get('background_sound'),
-            gallery=memorial['gallery'],
-            videos=memorial['videos'],
-            view_count=memorial['view_count'],
-            custom_fields=memorial.get("custom_fields", {}),
-            tributes_count=tributes_count,
-            date_created=memorial["date_created"],
-            date_updated=memorial["date_updated"],
-            created_by=memorial['created_by']
-        ))
+        memorial['tributes_count'] = tributes_count;
+
+    date_to_string(memorials) 
+    objectId_to_string(memorials)
     
     return {
         "total": total,
-        "memorials": result
+        "memorials": memorials
     }
 
 # Public endpoint - get memorial by id

@@ -520,11 +520,9 @@ class PaymentCard:
         card_currency = self.get_currency()
         card_amount = self.get_amount()
         if card_currency != currency.lower():
-            print("Card currenty different from abonnement currency. %s %s" % (card_currency, currency))
             return False
 
         if card_amount < price:
-            print("Card amount less the required price. %s %s" % (card_amount, price))
             return False
 
         collection = self.collection

@@ -54,15 +54,15 @@ export function ResourceViewerProvider({children}){
 
 	return <ResourceViewerContext.Provider value={{ startViewing }}>
 		<div className={`fixed flex flex-col w-full h-full z-50 bg-black ${(resources)? '':'hidden'}`}>
-			<div onClick={navigate} className='grid grid-cols-5 h-full items-center'>
+			<div onClick={navigate} className='grid grid-cols-5 h-5/6 items-center'>
 				<span index={index - 1} className={`cursor-pointer text-white text-center font-bold ${(index > 0)? '':'invisible'}`}><ArrowBigLeft width='100%' className='text-white' size='50' /></span>
 				<div className='col-span-3 bg-slate-900 h-full overflow-hidden text-center'>
 					<ViewComponent className='h-full inline-block' src={src} />
 				</div>
 				<span index={index + 1} className={`cursor-pointer text-center text-white font-bold ${(resources && index < (resources.length - 1)) ? '':'invisible'}`}><ArrowBigRight width='100%' size='50' className='text-white' /></span>
-				<div className='text-center col-span-5 bottom-0 text-center w-full p-2'>
-					<Button onClick={reset}>Fermer</Button>
 			</div>
+			<div className='text-center w-full p-2'>
+				<Button onClick={reset}>Fermer</Button>
 			</div>
 		</div>
 		{children}

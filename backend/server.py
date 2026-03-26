@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 
 # Import route modules
-from routes import auth_routes, settings_routes, form_fields_routes, memorial_routes, user_routes, order_routes, abonnement_routes
+from routes import auth_routes, settings_routes, form_fields_routes, memorial_routes, user_routes, order_routes, abonnement_routes, stat_routes
 
 import auth
 
@@ -34,6 +34,7 @@ memorial_routes.set_db(db)
 user_routes.set_db(db)
 order_routes.set_db(db)
 abonnement_routes.set_db(db)
+stat_routes.set_db(db)
 auth.set_db(db)
 
 # Include routers
@@ -44,6 +45,7 @@ app.include_router(memorial_routes.router)
 app.include_router(user_routes.router)
 app.include_router(order_routes.router)
 app.include_router(abonnement_routes.router)
+app.include_router(stat_routes.router)
 
 # Health check endpoint
 @app.get("/api/health")

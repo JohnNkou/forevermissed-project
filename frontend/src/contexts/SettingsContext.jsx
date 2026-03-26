@@ -8,9 +8,10 @@ const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 export const SettingsProvider = ({ children }) => {
   const [settings, setSettings] = useState({
     site: null,
-    layout: null
-  });
-  const [loading, setLoading] = useState(true);
+    layout: null,
+  }),
+  [navigation, setNavigation] = useState(),
+  [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchSettings();
@@ -18,8 +19,14 @@ export const SettingsProvider = ({ children }) => {
 
   const fetchSettings = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/settings`);
+      const response = await axios.get(`${API_URL}/api/settings`),
+      data = response.data,
+      navigation = data.navigation;
+
+      delete data.navigation;
+
       setSettings(response.data);
+      setNavigation(navigation);
     } catch (error) {
       console.error('Failed to fetch settings:', error);
     } finally {
@@ -32,7 +39,7 @@ export const SettingsProvider = ({ children }) => {
   };
 
   return (
-    <SettingsContext.Provider value={{ settings, loading, refreshSettings }}>
+    <SettingsContext.Provider value={{ settings, loading, navigation, refreshSettings }}>
       {children}
     </SettingsContext.Provider>
   );

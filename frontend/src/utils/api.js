@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { memorialEndpoint, tributeEndpoint, abonnementEndpoint, userCardEndpoint, orderEndpoint, memorialPictureEndpoint, memorialVideoEndpoint } from '../endpoint.js'
+import { memorialEndpoint, tributeEndpoint, abonnementEndpoint, userCardEndpoint, orderEndpoint, memorialPictureEndpoint, memorialVideoEndpoint, statsEndpoint, memorialStatsEndpoint, tributeStatsEndpoint, transactionStatsEndpoint } from '../endpoint.js'
 
 const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
@@ -29,7 +29,7 @@ export const formFieldsApi = {
 
 // Memorials API
 export const memorialsApi = {
-  list: (params) => axios.get(memorialEndpoint, { params }),
+  list: (params, { limit,skip }) => axios.get(`${memorialEndpoint}?skip=${skip}&limit=${limit}`, { params }),
   get: (id) => axios.get(`${memorialEndpoint}/${id}`),
   create: (data, onProgress) => axios.post(memorialEndpoint, data, { headers: getAuthHeaders(), onUploadProgress: onProgress }),
   getPictures: (id)=> axios.get(memorialPictureEndpoint.replace(':memorial_id', id)),
@@ -70,4 +70,12 @@ export const abonnementsApi = {
 export const ordersApi = {
   list: ()=> axios.get(orderEndpoint, { headers: getAuthHeaders() }),
   add: (data)=> axios.post(orderEndpoint, data, { headers: getAuthHeaders() }),
+}
+
+// Stats API
+export const statsApi = {
+  list: ()=> axios.get(statsEndpoint),
+  memorials: ()=> axios.get(memorialStatsEndpoint),
+  tributes: ()=> axios.get(tributeStatsEndpoint),
+  transaction: ()=> axios.get(transactionStatsEndpoint, { headers: getAuthHeaders() })
 }

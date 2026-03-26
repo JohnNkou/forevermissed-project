@@ -11,6 +11,7 @@ import { memorialsApi, tributesApi } from '../utils/api';
 import { MemorialResource, ResourceActionElement } from '../components/MemorialManagement'
 import { AudioPlayer, AudioControl } from '../components/AudioPlayer'
 import { useViewer } from '../contexts/ResourceViewerContext'
+import TributeCard from '../components/TributeCard'
 
 const MemorialDetailNew = () => {
   const { id } = useParams();
@@ -18,7 +19,7 @@ const MemorialDetailNew = () => {
   const audioRef = useRef(null);
   
   const [memorial, setMemorial] = useState(null);
-  const [activeTab, setActiveTab] = useState('about');
+  const [activeTab, setActiveTab] = useState();
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.3);
   
@@ -30,6 +31,17 @@ const MemorialDetailNew = () => {
   useEffect(() => {
     loadMemorial();
   }, [id]);
+
+  useEffect(()=>{
+    if(activeTab){
+      location.hash = "#" + activeTab;
+    }
+    else{
+      let newActiveTab = location.hash.slice(1) || 'about';
+
+      setActiveTab(newActiveTab);
+    }
+  }, [activeTab])
 
   useEffect(() => {
     if (audioRef.current) {
@@ -81,7 +93,7 @@ const MemorialDetailNew = () => {
       
       const memorialData = {
         ...memorialRes.data,
-        tributes: tributesRes.data
+        tributes: tributesRes.data.tributes
       };
       
       setMemorial(memorialData);
@@ -351,22 +363,7 @@ const MemorialDetailNew = () => {
                       <div className="space-y-6">
                         {memorial.tributes && memorial.tributes.length > 0 ? (
                           memorial.tributes.map((tribute) => (
-                            <div key={tribute._id} className="bg-white p-6 rounded-lg shadow-md border-l-4 border-purple-400">
-                              <div className="flex items-start gap-4">
-                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center flex-shrink-0">
-                                  <span className="text-white font-semibold">
-                                    {tribute.author_name.charAt(0).toUpperCase()}
-                                  </span>
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <span className="font-semibold text-purple-900">{tribute.author_name}</span>
-                                    <span className="text-sm text-gray-500">{new Date(tribute.created_at).toLocaleDateString()}</span>
-                                  </div>
-                                  <p className="text-gray-700 leading-relaxed">{tribute.text}</p>
-                                </div>
-                              </div>
-                            </div>
+                            <TributeCard key={tribute._id} tribute={tribute} />
                           ))
                         ) : (
                           <p className="text-gray-500 text-center py-8 italic">
@@ -522,30 +519,7 @@ const MemorialDetailNew = () => {
                   
                   {memorial.tributes && memorial.tributes.length > 0 ? (
                     memorial.tributes.map((tribute) => (
-                      <Card key={tribute._id} className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
-                        <CardContent className="p-3">
-                          <div className="flex items-start gap-4">
-                            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center flex-shrink-0">
-                              <span className="text-white text-xl font-semibold">
-                                {tribute.author_name.charAt(0).toUpperCase()}
-                              </span>
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between mb-3">
-                                <div>
-                                  <h4 className="font-bold text-purple-900 text-base">{tribute.author_name}</h4>
-                                  <p className="text-sm text-gray-600">{new Date(tribute.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-                                </div>
-                              </div>
-                              <div className="prose max-w-none">
-                                <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-                                  {tribute.text}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <TributeCard key={tribute._id} tribute={tribute} />
                     ))
                   ) : (
                     <div className="text-center py-12">

@@ -1,24 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Card, CardContent } from '../components/ui/card';
+import { Navigation } from '../components/Navigation'
+import MemorialCard from '../components/MemorialCard'
 import { memorialsApi } from '../utils/api';
+import { useSettings } from '../contexts/SettingsContext'
 
 const Browse = () => {
-  const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [memorials, setMemorials] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState(''),
+  [memorials, setMemorials] = useState([]),
+  [loading, setLoading] = useState(true),
+  [current, setCurrent] = useState(0),
+  [total, setTotal] = useState(),
+  navigation = useSettings().navigation,
+  limit = navigation && navigation.limit[0];
 
   useEffect(() => {
-    loadMemorials();
-  }, [searchQuery]);
+    if(navigation){
+      loadMemorials(0);
+    }
+  }, [searchQuery, navigation]);
 
-  const loadMemorials = async () => {
+  function onNavigation(newCurrent){
+    loadMemorials(newCurrent).then(()=>{
+      setCurrent(newCurrent);
+    });
+  }
+
+  const loadMemorials = async (skip) => {
     try {
-      const response = await memorialsApi.list({ search: searchQuery || undefined });
-      setMemorials(response.data.memorials || []);
+      const response = await memorialsApi.list({ search: searchQuery || undefined }, { limit, skip }),
+      data = response.data;
+      setMemorials(data.memorials || []);
+      setTotal(response.data.total || 0);
     } catch (error) {
       console.error('Failed to load memorials:', error);
     } finally {
@@ -57,39 +72,14 @@ const Browse = () => {
         </div>
 
         {/* Memorial Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
           {memorials.map((memorial) => (
-            <Card
-              key={memorial._id}
-              className="cursor-pointer hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1"
-              onClick={() => navigate(`/memorial/${memorial._id}`)}
-            >
-              <CardContent className="p-0">
-                <div className="aspect-square bg-gray-200 rounded-t-lg overflow-hidden">
-                  <img
-                    src={memorial.image + `?memorial_id=${memorial._id}`}
-                    alt={memorial.name}
-                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                  />
-                </div>
-                <div className="p-4">
-                  <p className="font-semibold text-gray-900 text-base text-nowrap mb-1 line-clamp-2">
-                    {memorial.name}
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    {memorial.birth_date && new Date(memorial.birth_date).getFullYear()} - {memorial.death_date && new Date(memorial.death_date).getFullYear()}
-                  </p>
-                  {(memorial.birth_place || memorial.death_place) && (
-                    <p className="text-xs text-gray-500 mt-1">{memorial.death_place || memorial.birth_place}</p>
-                  )}
-                  <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-                    <span>{memorial.tributes_count || 0} tributes</span>
-                    <span>{memorial.gallery?.length || 0} photos</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <MemorialCard key={memorial._id} memorial={memorial} />
           ))}
+        </div>
+
+        <div className='mt-6'>
+          <Navigation onNavigation={onNavigation} current={current} total={total} limit={limit} />
         </div>
 
         {/* No Results */}

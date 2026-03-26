@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Users, FileText, MessageSquare, TrendingUp, Settings } from 'lucide-react';
-import { memorialsApi, usersApi } from '../../utils/api';
+import { memorialsApi, usersApi, statsApi } from '../../utils/api';
 
 const DashboardHome = () => {
   const [stats, setStats] = useState({
@@ -17,18 +17,10 @@ const DashboardHome = () => {
 
   const loadStats = async () => {
     try {
-      const [usersRes, memorialsRes] = await Promise.all([
-        usersApi.list(),
-        memorialsApi.list()
-      ]);
+      const response = await statsApi.list(),
+      stats = response.data.stats;
 
-      const totalTributes = memorialsRes.data.reduce((sum, m) => sum + (m.tributes_count || 0), 0);
-
-      setStats({
-        users: usersRes.data.users.length,
-        memorials: memorialsRes.data.memorials.length,
-        tributes: totalTributes
-      });
+      setStats(stats);
     } catch (error) {
       console.error('Failed to load stats:', error);
     } finally {

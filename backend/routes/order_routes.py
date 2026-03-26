@@ -180,8 +180,6 @@ async def pay_order(order_id: str, user : dict = Depends(get_current_manager)):
             if card:
                 card = await db.cards.find_one({ "_id": card['id'] });
 
-                print("Card is", card)
-
                 if card:
                     payment_card = PaymentCard(card, db.cards)
                     price = order['price'].to_decimal()

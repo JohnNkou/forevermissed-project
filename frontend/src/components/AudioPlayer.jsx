@@ -9,18 +9,23 @@ export function AudioPlayer({ src, autoplay, onPlay, isPlaying, onStop, volume, 
 		if(autoplay){
 			let audio = ref.current,
 			currentTime = audio.currentTime,
+			totalRetry = 15,
 			c = setInterval(()=>{
 				if(currentTime == audio.currentTime){
-					audio.play().then(()=>{
-						setInitialized(true);
-					}).catch((error)=>{
-						console.log("Failed to start playback",error);
-						console.log("Retrying");
-					});
+					if(totalRetry--){
+						return audio.play().then(()=>{
+							setInitialized(true);
+						}).catch((error)=>{
+							console.warn("Failed to start playback",error);
+							console.warn("Retrying");
+						});
+					}
+					else{
+						console.warn("Maximum retry of playback faile");
+					}
 				}
-				else{
-					clearInterval(c);
-				}
+
+				clearInterval(c);
 			},1000);
 
 			return ()=>{

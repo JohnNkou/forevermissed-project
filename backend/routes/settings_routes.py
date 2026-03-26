@@ -4,10 +4,12 @@ from models import SiteSettings, LayoutSettings
 from auth import get_current_admin
 from bson import ObjectId
 from datetime import datetime
+from utils import get_limit
 
 router = APIRouter(prefix="/api", tags=["Settings"])
 
 db = None
+limit = get_limit()
 
 def set_db(database: AsyncIOMotorDatabase):
     global db
@@ -38,7 +40,10 @@ async def get_public_settings():
     
     return {
         "site": site_settings,
-        "layout": layout_settings
+        "layout": layout_settings,
+        "navigation":{
+            "limit": limit
+        }
     }
 
 # Admin endpoint - get site settings
