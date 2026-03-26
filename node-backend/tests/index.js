@@ -1,11 +1,11 @@
 import assert from 				'node:assert'
 import path from 				'node:path';
 import { MongoClient, ObjectId } from 	'mongodb'
-import { memorialEndpoint, tributeEndpoint, abonnementEndpoint, userCardEndpoint, memorialPictureEndpoint, memorialVideoEndpoint, memorialAudioEndpoint, resourceEndpoint, orderEndpoint, userEndpoint, orderPaymentEndpoint } from '../src/endpoint.js'
+import { memorialEndpoint, tributeEndpoint, abonnementEndpoint, userCardEndpoint, memorialPictureEndpoint, memorialVideoEndpoint, memorialAudioEndpoint, resourceEndpoint, orderEndpoint, userEndpoint, orderPaymentEndpoint, statsEndpoint, memorialStatsEndpoint, tributeStatsEndpoint, transactionStatsEndpoint } from '../src/endpoint.js'
 import FORM_FIELDS from 		'../src/fields.js'
 import Memorial from 			'../src/types/Memorial.js'
 import Abonnement from 			'../src/types/Abonnement.js'
-import { generateOrder, generateMemorial, generateUser, generatePictureData, generateVideoData, generateTribute, generateAbonnement, addResourceDataToForm, addDataToForm, updateAbonnementForTest,restoreAbonnements, setCardStub, getExpirationDate, waitFor, checkMissingPaiementRecords, waitAction, idSorter, getPopUsers, is, orderBuilder, titleSorter, getEnvData, getUserResource, dateToString, ObjectIdToString, removeId, Decimal128ToNumber } from './utils.js'
+import { generateOrder, generateMemorial, generateUser, generatePictureData, generateVideoData, generateTribute, generateAbonnement, addResourceDataToForm, addDataToForm, updateAbonnementForTest,restoreAbonnements, setCardStub, getExpirationDate, waitFor, checkMissingPaiementRecords, waitAction, idSorter, getPopUsers, is, orderBuilder, titleSorter, getEnvData, getUserResource, dateToString, ObjectIdToString, removeId, Decimal128ToNumber, exportRequireMemorialList } from './utils.js'
 import { getNumber, calculateExpirationDate,  getAbonnementDates, getMonthBetweenDate, } from 'utils/utils.js'
 import bcrypt from 				'bcrypt';
 import Card from '../src/types/Card.js'
@@ -433,25 +433,36 @@ try{
 
 				while(maxMemorial--){
 					memos.push(generateMemorial());
+
 					response = await manager1.request(memorialEndpoint,{
 						method:'POST',
 						body: memos.at(-1)
 					});
 					jsonResponse = await response.json();
 
-
 					assert.equal(response.status,201,"Le serveur devrait retourner le status 200")
 					assert.ok(jsonResponse.inserted,"Le manager devrait avoir la possibilité d'inserer un memorial tant que la limete de l'abonnement n'est pas atteint");
 					assert.ok(jsonResponse.id,"Apres l'ajout d'un memorial, le serveur devrait retourner l'id du memorial ajouté");
 
 					abonnement_class.add_memorial();
-					memos.at(-1)._id = jsonResponse.id;
+
+					let m = await db_memorials.find({ _id: new ObjectId(jsonResponse.id) }).next();
 
 					if(!_memorial){
 						_memorial = new Memorial(memos.at(-1))
 						_memorial.set_id(new ObjectId(jsonResponse.id));
 					}
+
+					memos[memos.length-1] = memos.at(-1).toJSON();
+					memos.at(-1).date_created = m.date_created;
+					memos.at(-1).tributes_count = 0;
+					memos.at(-1).videos = 0;
+					memos.at(-1).gallery = 0;
+					memos.at(-1)._id = jsonResponse.id;
+					memos.at(-1).view_count = 0;
 				};
+
+				exportRequireMemorialList(memos); dateToString(memos); ObjectIdToString(memos);
 
 				response = await guest.request(memorialEndpoint);
 				jsonResponse = await response.json();
@@ -462,33 +473,15 @@ try{
 				assert.equal(abonnement_class.get_memorial_created(), abonnement.maxMemorial, `The numberof memorial created in the Abonnement object should be equal to the chosen abonnement maxMemorial`);
 				assert.equal(resources.memorialCreated, abonnement.maxMemorial, `The memorialCreated of the resources object of the user should be set to ${abonnement.maxMemorial}`);
 
-				memos.sort(idSorter(true))
-				jsonResponse.memorials.sort(idSorter(true))
+				memos.sort((x,y)=> x.date_created > y.date_created ? -1:1);
 
-				jsonResponse.memorials.every((memorial,index)=>{
-					let created_by = new ObjectId(memorial.created_by),
-					memo = memos[index];
+				function imageEraser(data){
+					data.image = undefined;
 
-					for(let [name,value] of memo.entries()){
-						let value = memo.get(name),
-						_value = memorial[name];
+					return data
+				}
 
-						assert.ok(_value,`The field ${name} should be returned by the server`);
-
-						if(value instanceof File){
-							let extension =  path.extname(value.name);
-
-							assert.ok(_value.endsWith(extension),`The field ${name} should end with the extension ${extension}`);
-							continue;
-						}
-
-						assert.equal(_value, value, `The field ${name} of memorial should be equal to ${value}`)
-					}
-
-					assert.ok(new ObjectId(memorial.created_by).equals(manager1.get_id()), "The memorial creator_id attribute should reference the manager who created the memorial");
-
-
-				})
+				assert.deepEqual(jsonResponse.memorials.map(imageEraser), memos.map(imageEraser));
 			})
 
 			await t.test("When the user try to add more memorial the what the maximum for the given abonnement authorized a 423 status code should be returned",async()=>{
@@ -1242,25 +1235,33 @@ try{
 						"birth_place":1,
 						"death_date":1,
 						"death_place":1,
-						"date_created":1
+						"date_created":1,
+						"name":1,
+						"view_count":1,
+						"image":1
 					}
 				}
-			]).sort({'date_created':-1}).toArray();
+			]).sort({'date_created':-1}).toArray().then((memorials)=>{
+				return memorials.reduce(async (data,memorial)=>{
+					data = await data;
+
+					let tributes_count = await db_tributes.countDocuments({ memorial_id: memorial._id });
+
+					memorial.tributes_count = tributes_count;
+
+					data.push(memorial);
+
+					return data;
+				}, Promise.resolve([]))
+			});
 			jsonResponse = await response.json();
+
+			dateToString(memorials); ObjectIdToString(memorials);
 
 			assert.equal(response.status,200,`The server should return a 200 status code when a request for the public memorial endpoint is made`);
 			assert.equal(jsonResponse.memorials.length,memorials.length,`The number of memorial returned by the server should be ${memorials.length}`);
+			assert.deepEqual(jsonResponse.memorials, memorials, `The memorials return by the server should only contain necessary properties`)
 
-			assert.equal(
-				String(memorials[0]._id), 
-				jsonResponse.memorials[0]._id,
-				`The memorial returned by the server should have a id of ${memorials[0]._id}`
-			);
-
-			jsonResponse.memorials.forEach((m,index)=>{
-				assert.strictEqual(m.videos, memorials[index].videos)
-				assert.strictEqual(m.gallery, memorials[index].gallery)
-			})
 
 			response = await db_memorials.deleteOne({ _id: memorial._id });
 
@@ -1467,6 +1468,12 @@ try{
 				response = await db_memorials.insertMany(memorials);
 				total = await db_memorials.countDocuments();
 
+				memorials = memorials.map((m)=>{
+					m.gallery = 0;
+					m.videos = 0;
+					return m;
+				})
+
 				assert.equal(response.insertedCount, memorials.length, `The number of inserted`);
 
 				memorials.sort((x,y)=> x.date_created > y.date_created ? -1: 1).map((memorial)=> {
@@ -1474,7 +1481,7 @@ try{
 					return memorial;
 				});
 
-				dateToString(memorials); ObjectIdToString(memorials);
+				dateToString(memorials); ObjectIdToString(memorials); exportRequireMemorialList(memorials);
 
 				responses = await Promise.all([
 					guest.request(`${memorialEndpoint}?limit=1`),
@@ -1845,17 +1852,25 @@ try{
 					})
 				);
 
-				responses.forEach((response, index)=>{
+				await Promise.all(responses.map(async (response, index)=>{
 					let status = index == 0 ? 403 : 201,
-					role = index == 0 ? 'manager':'admin';
+					role = index == 0 ? 'manager':'admin',
+					jsonResponse = await response.json();
 
 					assert.equal(response.status, status, `The server should return a ${status} status code when an ${role} try to insert an user`);
-				})
 
-				sentUser = await db_users.find().sort('_id',-1).next();
+					if(status == 201){
+						assert.ok(jsonResponse.insertedId)
+
+						users[index]._id = jsonResponse.insertedId;
+					}
+					else{
+						users[index]._id = "";
+					}
+				}))
+
+				sentUser = await db_users.findOne({ email: users[1].email });
 				newLength = await db_users.countDocuments();
-
-				delete sentUser._id;
 
 				for(let name in users[1]){
 					let method = 'equal',
@@ -2022,6 +2037,249 @@ try{
 				assert.equal(response.status, 200, `The server should return a 200 status code`)
 				assert.equal(jsonResponse.orders.length,0,`The server should an empty order transaction`);
 			})
+		})
+	})
+
+	await test("Testing Stats Queries", { skip:false, signal: aborter.signal }, async (t)=>{
+		await t.test("Testing memorial stats", async(t)=>{
+			await t.test("When the user send a request for the memorial stats, the stats for the memorial should be retrieve and presented", async()=>{
+				let total = await db_memorials.countDocuments({});
+
+				response = await guest.request(memorialStatsEndpoint);
+				jsonResponse = await response.json();
+
+				assert.equal(response.status, 200);
+				assert.equal(jsonResponse.stats, total, `The stats should contain the value ${total}`);
+			})
+
+			await t.test("When the user request include the year query the server should retrieve static only for that given year", async()=>{
+				let ids = await db_memorials.find().project(['_id']).limit(2).toArray();
+				ids = ids.map((d)=> d._id);
+
+				response = await db_memorials.updateMany({ _id: { $in: ids } }, { $set: { date_created: new Date(10,10,2000) } });
+
+				if(response.modifiedCount != 2){
+					throw Error("modifiedCount should be set to 2");
+				}
+
+				let memorials = await db_memorials.aggregate([
+					{ 
+						$group: { 
+							_id:{ $year: "$date_created" }, total: { $count:{} }
+						} 
+					},
+					{ $sort: { "_id": -1 } }
+				]).toArray();
+
+				for(let memorial of memorials){
+					response = await guest.request(`${memorialStatsEndpoint}?year=${memorial._id}`);
+					jsonResponse = await response.json();
+
+					assert.equal(response.status,200);
+					assert.equal(jsonResponse.stats, memorial.total);
+				}
+			})
+
+			await t.test("When the user request include a bad query the server should return a 422 status cdoe", async()=>{
+				response = await guest.request(`${memorialStatsEndpoint}?year=maman`)
+
+				assert.equal(response.status, 422, 'The server should return a 422 status code');
+			})
+		})
+
+		await t.test("Testing tribute stats", async(t)=>{
+			await t.test("When the user send a request for the tributes stats the server should return the count of all tributes sent", async()=>{
+				let total = await db_tributes.countDocuments({});
+
+				response = await guest.request(`${tributeStatsEndpoint}`);
+				jsonResponse = await response.json();
+
+				assert.equal(response.status, 200);
+				assert.equal(jsonResponse.stats, total, `The stats response should be equal to ${total}`)
+			})
+		})
+
+		await t.test("Testing transaction stats", async(t)=>{
+			await t.test("When the user send a request for the transactions stats the server should return the amount of all transaction successfull and unsuccessfull", async ()=>{
+				let years = await db_orders.aggregate([
+					{ $group: { _id: { $year: "$date_created" } } }
+				]).toArray().then((d)=> d.map((d)=> d._id)),
+				transactions;
+
+				if(years.length){
+					if(years.length == 1){
+						years.push(1900);
+					}
+
+					for(let year of years){
+						transactions = await db_orders.aggregate([
+							{ 
+								$match: {
+									$expr:{
+										$eq:[
+											{ $year:"$date_created" },
+											year
+										]
+									} 
+								} 
+							},
+							{ 
+								$group: {
+									_id: {
+										currency:"$currency",
+										isPaid:{
+											$eq: ["$status","paid"]
+										}
+									},
+									total:{ $sum:"$price" }
+								} 
+							},
+							{
+								$project:{
+									_id:1,
+									total: { $toDouble:"$total" }
+								}
+							}
+						]).toArray();
+
+						response = await admin1.request(`${transactionStatsEndpoint}?year=${year}`);
+						jsonResponse = await response.json();
+
+						assert.equal(response.status, 200, `The server should return a 200 status code`);
+						assert.equal(jsonResponse.stats.length, transactions.length, `The stats array should have ${transactions.length} element for year ${year}`);
+						assert.deepEqual(jsonResponse.stats, transactions);
+					}
+				}
+				else{
+					throw Error("Order has no years");
+				}
+			})
+
+			await t.test("When the user send a bad query the server should return a 422 status code", async()=>{
+				response = await admin1.request(`${transactionStatsEndpoint}?year=maman`);
+
+				assert.equal(response.status, 422, `The server should return a 422 status code`);
+			})
+
+			await t.test("When a non admin try to request the order stats a 403 status code should be returned", async()=>{
+				let year = (new Date()).getFullYear();
+
+				responses = await Promise.all([
+					manager1.request(`${transactionStatsEndpoint}?year=${year}`),
+					guest.request(`${transactionStatsEndpoint}?year=${year}`)
+				]);
+
+				responses.forEach((response,index)=>{
+					let status = index == 0 ? 403: 401;
+
+					assert.equal(response.status, status, `The server should return a ${status} status code`);
+				})
+			})
+		})
+
+		await t.test("Testing global stats", async(t)=>{
+			let orders = await db_orders.find().toArray(),
+			orderIds = orders.map((order)=> order._id);
+
+			response = await db_orders.updateMany(
+				{ _id: { $in:orderIds.slice(0,4) }  },
+				{ $set: { status:'paid' } }
+			)
+
+			if(response.modifiedCount == 0){
+				throw Error("Couldn't set the orders status to paid")
+			}
+
+			let r = await db_users.aggregate([
+				{ $count: "stats" },
+				{ $addFields: { collection:'users' } },
+				{
+					$unionWith:{
+						coll:"memorials",
+						pipeline:[
+							{ $count:"stats" },
+							{ $addFields: { collection:'memorials' } }
+						]
+					}
+				},
+				{
+					$unionWith:{
+						coll:"tributes",
+						pipeline:[
+							{ $count:"stats" },
+							{ $addFields: { collection:'tributes' } }
+						]
+					}
+				},
+				{
+					$unionWith:{
+						coll:"orders",
+						pipeline:[
+							{
+								$group:{
+									_id:{
+										table:{
+											$cond:[
+												{ $eq: ["$status","paid"] },
+												"payments",
+												"debts"
+											]
+										},
+										currency:"$currency"
+									},
+									stats: { $sum:"$price" }
+								}
+							},
+							{ $addFields: { collection:"$_id.table" } },
+							{
+								$project:{
+									_id:0,
+									collection:1,
+									stats:{
+										$toDouble:"$stats"
+									},
+									currency:"$_id.currency"
+								}
+							}
+						]
+					}
+				}
+			]).toArray(),
+			stats = r.reduce((payload, item)=>{
+
+				if(!item.currency){
+					payload[item.collection] = item.stats;
+				}
+				else{
+					let data = payload[item.collection];
+
+					if(!data){
+						data = payload[item.collection] = [];
+					}
+
+					data.push({ stats: item.stats, currency: item.currency })
+				}
+
+				return payload;
+			},{});
+
+			assert.ok(stats.payments);
+			assert.ok(stats.debts);
+
+			responses = await Promise.all([
+				guest.request(statsEndpoint),
+				admin1.request(statsEndpoint)
+			]);
+
+			responses.forEach((response)=>{
+				assert.equal(response.status, 200, `The server should return a 200 status code`);
+			})
+
+			jsonResponse = await responses[0].json();
+			assert.deepEqual(jsonResponse.stats, { users:stats.users, memorials: stats.memorials, tributes: stats.tributes });
+
+			jsonResponse = await responses[1].json();
+			assert.deepEqual(jsonResponse.stats, stats);
 		})
 	})
 }

@@ -175,6 +175,12 @@ export function generateUser({ user, role='manager' } = {}){
 
 		email = `${user}@${APP_DOMAIN.toString()}`
 	}
+	else{
+		let idex = Math.random().toString().slice(10),
+		letter = email[2];
+
+		email = email.replace(letter, idex);
+	}
 
 	return {
 		email: 				email,
@@ -209,7 +215,7 @@ export function generateTribute(){
 	let author_name = faker.person.fullName(),
 	text = faker.word.words({ min:20, max:120 });
 
-	return { author_name, text }
+	return { author_name, text, author_email: faker.internet.email() }
 }
 
 export function getExpirationDate(date,frequency,repeat=1){
@@ -295,8 +301,8 @@ export function generatePictureData(number,{size_1=50, size_2=50}={}){
 	}
 
 	while(number--){
-		pictures.push(new File([new ArrayBuffer(size_1)], faker.string.nanoid(6) + ".png"));
-		pictures_mini.push(new File([new ArrayBuffer(size_2)], faker.string.nanoid(6) + ".png"));
+		pictures.push(new File([new ArrayBuffer(size_1)], faker.string.nanoid(10) + ".png"));
+		pictures_mini.push(new File([new ArrayBuffer(size_2)], faker.string.nanoid(10) + ".png"));
 		names.push(faker.string.nanoid());
 	}
 
@@ -405,15 +411,15 @@ export function generateVideoData(number, {category=1, video_size=50, picture_si
 		let bytes,
 		name;
 
-		if(category == undefined){
+		if(!category){
 			bytes = new ArrayBuffer(video_size);
 		}
 		else{
-			bytes = fs.readFileSync(`resources/${category}.MOV`);
+			bytes = fs.readFileSync(`./resources/${category}.MOV`);
 		}
 
-		videos.push(new File([bytes], faker.string.nanoid(5) + ".mov"));
-		pictures_mini.push(new File([new ArrayBuffer(picture_size)], faker.string.nanoid(5) + ".png"));
+		videos.push(new File([bytes], faker.string.nanoid(10) + ".mov"));
+		pictures_mini.push(new File([new ArrayBuffer(picture_size)], faker.string.nanoid(10) + ".png"));
 		titles.push(faker.string.nanoid());
 	}
 
@@ -430,9 +436,9 @@ export function generateMemorial(){
 	form.append("death_place", faker.location.city())
 	form.append("biography", faker.word.words(40))
 	form.append("obituary", faker.word.words(100))
-	form.append("image", new File([new ArrayBuffer(50)], faker.string.nanoid(5) + ".jpeg"))
-	form.append("background_image",	new File([new ArrayBuffer(50)], faker.string.nanoid(5) + ".jpeg"))
-	form.append("background_sound", new File([new ArrayBuffer(50)], faker.string.nanoid(5) + ".aiff"))
+	form.append("image", new File([new ArrayBuffer(50)], faker.string.nanoid(10) + ".jpeg"))
+	form.append("background_image",	new File([new ArrayBuffer(50)], faker.string.nanoid(10) + ".jpeg"))
+	form.append("background_sound", new File([new ArrayBuffer(50)], faker.string.nanoid(10) + ".aiff"))
 
 	return form;
 }
@@ -450,6 +456,22 @@ export function generateOrder(email,status='new'){
 		due_date: new Date(),
 		status
 	}
+}
+
+export function exportRequireMemorialList(memorials){
+	let required = ['name','_id','birth_date','birth_place','death_place','death_date','gallery','videos','image','view_count','date_created','tributes_count'];
+
+	if(!(memorials instanceof Array)){
+		memorials = [memorials]
+	}
+
+	memorials.forEach((memorial)=>{
+		for(let name in memorial){
+			if(required.indexOf(name) == -1){
+				delete memorial[name]
+			}
+		}
+	})
 }
 
 export function getUserResource(user_id, collection){
