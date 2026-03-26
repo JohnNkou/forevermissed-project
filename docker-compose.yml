@@ -20,7 +20,7 @@ services:
       - .env
     volumes:
        - ./backend:/home/backend
-       - data:/home/backend/resources/
+       - ./node-backend/tests/resources:/home/backend/resources/
     networks:
       forever-network:
   database:
@@ -80,5 +80,3 @@ services:
       - ./certs:/certs/
 networks:
   forever-network:
-volumes:
-  data:
